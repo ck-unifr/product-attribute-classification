@@ -304,17 +304,23 @@ print(confusion_mtx)
 
 # ----------
 # TODO: Display some error results
-error_indices = []
-for i in enumerate(test_true_classes):
-    if test_true_classes[i] != test_pred_classes[i]:
-        error_indices.append(i)
 
-list_error_product_id = []
-for i in error_indices:
-    list_error_product_id.append(list_product_id_test[i])
+print('true classes')
+print(test_true_classes)
+print('predicted classes')
+print(test_pred_classes)
 
-print('error classified products')
-print(list_error_product_id)
+# error_indices = []
+# for i in enumerate(test_true_classes[:, 0]):
+#     if test_true_classes[i, 0] != test_pred_classes[i, 0]:
+#         error_indices.append(i)
+#
+# list_error_product_id = []
+# for i in error_indices:
+#     list_error_product_id.append(list_product_id_test[i])
+#
+# print('error classified products')
+# print(list_error_product_id)
 
 
 
