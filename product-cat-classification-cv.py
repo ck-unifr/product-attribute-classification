@@ -183,7 +183,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 
 
 # CNN hyperparameters
-epochs = 1
+epochs = 2
 batch_size = 128
 
 model = Sequential()
@@ -193,12 +193,10 @@ model.add(Conv2D(filters = 32, kernel_size = (5,5), padding = 'Same', activation
 model.add(MaxPool2D(pool_size=(2,2)))
 model.add(Dropout(0.25))
 
-# model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same',
-#                  activation ='relu'))
-# model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same',
-#                  activation ='relu'))
-# model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
-# model.add(Dropout(0.25))
+model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
+model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
+model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.25))
 
 model.add(Flatten())
 model.add(Dense(256, activation = "relu"))
