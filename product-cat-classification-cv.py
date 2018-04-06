@@ -37,6 +37,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
 
 from keras.utils.np_utils import to_categorical # convert to one-hot-encoding
 from keras.models import Sequential, load_model
@@ -61,16 +62,29 @@ df_product = pd.read_csv(PRODUCT_CSV_FILE)
 
 list_product_id = df_product['ProductId'].unique()
 list_product_id = np.array(list_product_id)
+print('number of products {}'.format(list_product_id.shape[0]))
 
 # get product category
 print('get product category.')
 list_category = df_product['Category'].unique()
+list_category = np.array(list_category)
+print('number of category {}'.format(list_category.shape[0]))
+
 dict_product_cat = dict()
 for product_id in list_product_id:
     category = df_product[df_product['ProductId'] == product_id]['Category'].values
     # if (len(category)) > 1:
     #     print('>1')
     dict_product_cat[product_id] = category[0]
+
+# key: category  value: number of products
+dict_cat = dict()
+for category in list_category:
+    products = df_product[df_product['Category'] == category]['ProductId'].values
+    dict_cat[category] = products
+    # print('category {}  number of products {}'.format(category, len(products)))
+
+
 
 
 # get mapping product_id -> articlephoto_id
@@ -142,11 +156,19 @@ train_img_y = np.array(train_img_y)
 test_img_x = np.array(test_img_x)
 test_img_y = np.array(test_img_y)
 
+
+
+
 # transform category to one-hot encoding
 le = preprocessing.LabelEncoder()
 le.fit(class_names)
 train_img_y = le.transform(train_img_y)
 test_img_y = le.transform(test_img_y)
+
+# show number of samples per class
+# plt.hist(train_img_y.tolist(), range(min(train_img_y), max(train_img_y)+1))
+# plt.show()
+
 
 train_img_y = to_categorical(train_img_y, num_classes = len(class_names))
 test_img_y = to_categorical(test_img_y, num_classes = len(class_names))
@@ -157,12 +179,12 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 
 # CNN hyperparameters
 epochs = 2
-batch_size = 64
+batch_size = 128
 
 model = Sequential()
 
-model.add(Conv2D(filters = 16, kernel_size = (5,5), padding = 'Same', activation ='relu', input_shape = (img_width, img_height, 3)))
-model.add(Conv2D(filters = 16, kernel_size = (5,5), padding = 'Same', activation ='relu'))
+model.add(Conv2D(filters = 64, kernel_size = (5,5), padding = 'Same', activation ='relu', input_shape = (img_width, img_height, 3)))
+model.add(Conv2D(filters = 32, kernel_size = (5,5), padding = 'Same', activation ='relu'))
 model.add(MaxPool2D(pool_size=(2,2)))
 model.add(Dropout(0.25))
 
@@ -264,54 +286,77 @@ test_pred_classes = np.argmax(test_pred, axis = 1)
 # results = pd.Series(results, name="Label")
 
 # Convert test observations to one hot vectors
-test_true = np.argmax(test_img_y, axis = 1)
+test_true_classes = np.argmax(test_img_y, axis = 1)
 
 # compute the confusion matrix
-confusion_mtx = confusion_matrix(test_true, test_pred_classes)
+test_true_classes = le.inverse_transform(test_true_classes)
+test_pred_classes = le.inverse_transform(test_pred_classes)
+
+print(classification_report(test_true_classes, test_pred_classes, target_names=class_names))
+
+confusion_mtx = confusion_matrix(test_true_classes, test_pred_classes)
+print(confusion_mtx)
 
 # plot the confusion matrix
-plot_confusion_matrix(confusion_mtx, classes = range(10))
+# plot_confusion_matrix(confusion_mtx, classes = range(10))
+# plt.show()
 
-# Display some error results
+
+# ----------
+# TODO: Display some error results
+error_indices = []
+for i in enumerate(test_true_classes):
+    if test_true_classes[i] != test_pred_classes[i]:
+        error_indices.append(i)
+
+list_error_product_id = []
+for i in error_indices:
+    list_error_product_id.append(list_product_id_test[i])
+
+print('error classified products')
+print(list_error_product_id)
+
+
+
 
 # Errors are difference between predicted labels and true labels
-errors = (test_pred_classes - test_true != 0)
-
-Y_pred_classes_errors = test_pred_classes[errors]
-Y_pred_errors = test_pred[errors]
-Y_true_errors = test_true[errors]
-X_val_errors = test_img_x[errors]
-
-def display_errors(errors_index,img_errors,pred_errors, obs_errors, img_width, img_height):
-    """ This function shows 6 images with their predicted and real labels"""
-    n = 0
-    nrows = 2
-    ncols = 3
-    fig, ax = plt.subplots(nrows,ncols,sharex=True,sharey=True)
-    for row in range(nrows):
-        for col in range(ncols):
-            error = errors_index[n]
-            ax[row,col].imshow((img_errors[error]).reshape((img_width, img_height)))
-            ax[row,col].set_title("Predicted label :{}\nTrue label :{}".format(pred_errors[error],obs_errors[error]))
-            n += 1
-
-# Probabilities of the wrong predicted numbers
-Y_pred_errors_prob = np.max(Y_pred_errors,axis = 1)
-
-# Predicted probabilities of the true values in the error set
-true_prob_errors = np.diagonal(np.take(Y_pred_errors, Y_true_errors, axis=1))
-
-# Difference between the probability of the predicted label and the true label
-delta_pred_true_errors = Y_pred_errors_prob - true_prob_errors
-
-# Sorted list of the delta prob errors
-sorted_dela_errors = np.argsort(delta_pred_true_errors)
-
-# Top 6 errors
-most_important_errors = sorted_dela_errors[-6:]
-
-# Show the top 6 errors
-display_errors(most_important_errors, X_val_errors, Y_pred_classes_errors, Y_true_errors, img_width, img_height)
+# errors = (test_pred_classes - test_true != 0)
+#
+# Y_pred_classes_errors = test_pred_classes[errors]
+# Y_pred_errors = test_pred[errors]
+# Y_true_errors = test_true[errors]
+# X_val_errors = test_img_x[errors]
+#
+# def display_errors(errors_index, img_errors, pred_errors, obs_errors, img_width, img_height):
+#     """ This function shows 6 images with their predicted and real labels"""
+#     n = 0
+#     nrows = 2
+#     ncols = 3
+#     fig, ax = plt.subplots(nrows,ncols,sharex=True,sharey=True)
+#     for row in range(nrows):
+#         for col in range(ncols):
+#             error = errors_index[n]
+#             ax[row,col].imshow((img_errors[error]).reshape((img_width, img_height)))
+#             ax[row,col].set_title("Predicted label :{}\nTrue label :{}".format(pred_errors[error],obs_errors[error]))
+#             n += 1
+#
+# # Probabilities of the wrong predicted numbers
+# Y_pred_errors_prob = np.max(Y_pred_errors,axis = 1)
+#
+# # Predicted probabilities of the true values in the error set
+# true_prob_errors = np.diagonal(np.take(Y_pred_errors, Y_true_errors, axis=1))
+#
+# # Difference between the probability of the predicted label and the true label
+# delta_pred_true_errors = Y_pred_errors_prob - true_prob_errors
+#
+# # Sorted list of the delta prob errors
+# sorted_dela_errors = np.argsort(delta_pred_true_errors)
+#
+# # Top 6 errors
+# most_important_errors = sorted_dela_errors[-6:]
+#
+# # Show the top 6 errors
+# display_errors(most_important_errors, X_val_errors, Y_pred_classes_errors, Y_true_errors, img_width, img_height)
 
 
 # # predict results
