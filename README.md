@@ -1,1 +1,1 @@
-# product-attribute-classification
+# product classification
