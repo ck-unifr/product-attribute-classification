@@ -125,6 +125,9 @@ train_img_y = []
 test_img_x = []
 test_img_y = []
 
+# key: product id, value: image path
+dict_img_path = dict()
+
 # ----
 # get training and test images
 img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
@@ -138,6 +141,8 @@ for file_name in dirs:
     # x = x.reshape((1,) + x.shape)  # this is a Numpy array with shape (1, 3, img_width, img_height)
 
     product_id = int(file_name.split('_')[0])
+
+    dict_img_path[product_id] = file_path
     # print(product_id)
 
     # if not product_id in list_product_id:
@@ -320,9 +325,13 @@ for i in error_indices:
 print('error classified products')
 print(list_error_product_id)
 
-acc = len(list_error_product_id) / len(list_product_id_test)
+acc = 1 - len(list_error_product_id) / len(list_product_id_test)
 print('accuracy {}'.format(acc))
 
+
+img = mpimg.imread(dict_img_path[list_error_product_id[0]])
+imgplot = plt.imshow(img)
+plt.show()
 
 
 
