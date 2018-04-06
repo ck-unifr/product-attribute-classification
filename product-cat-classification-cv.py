@@ -320,6 +320,9 @@ for i in error_indices:
 print('error classified products')
 print(list_error_product_id)
 
+acc = len(list_error_product_id) / len(list_product_id_test)
+print('accuracy {}'.format(acc))
+
 
 
 
