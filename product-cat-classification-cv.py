@@ -178,7 +178,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 
 
 # CNN hyperparameters
-epochs = 2
+epochs = 1
 batch_size = 128
 
 model = Sequential()
@@ -304,23 +304,21 @@ print(confusion_mtx)
 
 # ----------
 # TODO: Display some error results
+test_true_classes = np.array(test_true_classes).reshape((test_img_x.shape[0], 1))
+test_pred_classes = np.array(test_pred_classes).reshape((test_img_x.shape[0], 1))
 
-print('true classes')
-print(test_true_classes)
-print('predicted classes')
-print(test_pred_classes)
 
-# error_indices = []
-# for i in enumerate(test_true_classes[:, 0]):
-#     if test_true_classes[i, 0] != test_pred_classes[i, 0]:
-#         error_indices.append(i)
-#
-# list_error_product_id = []
-# for i in error_indices:
-#     list_error_product_id.append(list_product_id_test[i])
-#
-# print('error classified products')
-# print(list_error_product_id)
+error_indices = []
+for i, val in enumerate(test_true_classes):
+    if test_true_classes[i][0] != test_pred_classes[i][0]:
+        error_indices.append(i)
+
+list_error_product_id = []
+for i in error_indices:
+    list_error_product_id.append(list_product_id_test[i])
+
+print('error classified products')
+print(list_error_product_id)
 
 
 
