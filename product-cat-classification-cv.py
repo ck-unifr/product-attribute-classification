@@ -290,7 +290,7 @@ datagen = ImageDataGenerator(
 datagen.fit(train_img_x)
 
 # Fit the model
-#Tensorboard log
+# Tensorboard log
 tf_log_dir = './tf-log/'
 if not os.path.exists(tf_log_dir):
     os.makedirs(tf_log_dir)
@@ -328,7 +328,8 @@ ax[1].plot(history.history['acc'], color='b', label="Training accuracy")
 ax[1].plot(history.history['val_acc'], color='r',label="Validation accuracy")
 legend = ax[1].legend(loc='best', shadow=True)
 
-plt.show()
+if plot_figure:
+    plt.show()
 
 # Confusion matrix
 def plot_confusion_matrix(cm, classes,
@@ -379,8 +380,9 @@ confusion_mtx = confusion_matrix(test_true_classes, test_pred_classes)
 print(confusion_mtx)
 
 # plot the confusion matrix
-# plot_confusion_matrix(confusion_mtx, classes = range(10))
-# plt.show()
+plot_confusion_matrix(confusion_mtx, classes = range(10))
+if plot_figure:
+    plt.show()
 
 
 # ----------
@@ -407,62 +409,9 @@ print('accuracy {}'.format(acc))
 
 img = mpimg.imread(dict_img_path[list_error_product_id[0]])
 imgplot = plt.imshow(img)
-plt.show()
 
-
-
-# Errors are difference between predicted labels and true labels
-# errors = (test_pred_classes - test_true != 0)
-#
-# Y_pred_classes_errors = test_pred_classes[errors]
-# Y_pred_errors = test_pred[errors]
-# Y_true_errors = test_true[errors]
-# X_val_errors = test_img_x[errors]
-#
-# def display_errors(errors_index, img_errors, pred_errors, obs_errors, img_width, img_height):
-#     """ This function shows 6 images with their predicted and real labels"""
-#     n = 0
-#     nrows = 2
-#     ncols = 3
-#     fig, ax = plt.subplots(nrows,ncols,sharex=True,sharey=True)
-#     for row in range(nrows):
-#         for col in range(ncols):
-#             error = errors_index[n]
-#             ax[row,col].imshow((img_errors[error]).reshape((img_width, img_height)))
-#             ax[row,col].set_title("Predicted label :{}\nTrue label :{}".format(pred_errors[error],obs_errors[error]))
-#             n += 1
-#
-# # Probabilities of the wrong predicted numbers
-# Y_pred_errors_prob = np.max(Y_pred_errors,axis = 1)
-#
-# # Predicted probabilities of the true values in the error set
-# true_prob_errors = np.diagonal(np.take(Y_pred_errors, Y_true_errors, axis=1))
-#
-# # Difference between the probability of the predicted label and the true label
-# delta_pred_true_errors = Y_pred_errors_prob - true_prob_errors
-#
-# # Sorted list of the delta prob errors
-# sorted_dela_errors = np.argsort(delta_pred_true_errors)
-#
-# # Top 6 errors
-# most_important_errors = sorted_dela_errors[-6:]
-#
-# # Show the top 6 errors
-# display_errors(most_important_errors, X_val_errors, Y_pred_classes_errors, Y_true_errors, img_width, img_height)
-
-
-# # predict results
-# results = model.predict(test)
-#
-# # select the indix with the maximum probability
-# results = np.argmax(results,axis = 1)
-#
-# results = pd.Series(results,name="Label")
-
-
-
-
-
+if plot_figure:
+    plt.show()
 
 
 
