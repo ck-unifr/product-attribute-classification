@@ -189,6 +189,10 @@ for class_name in class_names:
     #                                                                               test_size=0.05, random_state=42)
     test_sparse_matrix = sfm.transform(test_features)
 
+    if train_sparse_matrix.shape[1] <= 0:
+        train_sparse_matrix = train_features
+        test_sparse_matrix = test_features
+
     cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
     dict_roc_auc_cv_scores[class_name] = cv_score
     print('CV roc auc score for class {} is {}'.format(class_name, cv_score))
@@ -199,8 +203,9 @@ for class_name in class_names:
     #pred_attribute[class_name] = classifier.predict(test_sparse_matrix)
 
     test_target = test_attribute[class_name]
-    score = roc_auc_score(test_target, pred_attribute[class_name])
-    dict_roc_auc_scores[class_name] = score
+    if(len(set(test_target)) > 1):
+        score = roc_auc_score(test_target, pred_attribute[class_name])
+        dict_roc_auc_scores[class_name] = score
 
     print('test roc auc score for class {} is {}'.format(class_name, score))
 
