@@ -1,6 +1,7 @@
 # Farfetech case study
 #
 # Product category classification with CNN
+# The object of this script is using deep learning technologies (CNN) for product category classification
 #
 # Author: Kai Chen
 # Date: Apr, 2018
@@ -214,7 +215,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 epochs = 200
 batch_size = 32
 filters = [16, 16, 8, 8]
-kernel_sizes = [9, 9, 7, 7]
+kernel_sizes = [11, 11, 7, 7]
 strides = [2, 2, 2, 2]
 pooling_sizes = [2, 2]
 str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[strides]{}-[pooling_sizes]{}'.format(epochs,
@@ -350,7 +351,6 @@ test_pred = model.predict(test_img_x)
 
 # -----------
 # Step 5: Evaluation
-
 
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
