@@ -243,8 +243,8 @@ model.add(Activation('relu'))
 model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
 model.add(Dropout(0.2))
 
-model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
-                 padding = 'Same', strides=strides[2], kernel_initializer='glorot_uniform',
+model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]), kernel_initializer='glorot_uniform',
+                 padding = 'Same', strides=strides[2],
                  #activation ='relu'
                  ))
 model.add(BatchNormalization())
@@ -301,21 +301,6 @@ history = model.fit_generator(datagen.flow(train_img_x, train_img_y, batch_size=
                               epochs = epochs, validation_data = (val_img_x, val_img_y),
                               verbose = 2, steps_per_epoch=train_img_x.shape[0] // batch_size, callbacks=[learning_rate_reduction])
 
-model_dir = './models/'
-if not os.path.exists(model_dir):
-  os.mkdir(model_dir)
-
-model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
-model.save(model_path)
-print('save model to {}'.format(model_path))
-
-weight_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
-model.save_weights(weight_path)
-print('save weights to {}'.format(weight_path))
-
-
-# -----------
-# Evaluation
 
 # Training and validation curves
 # Plot the loss and accuracy curves for training and validation
@@ -331,7 +316,34 @@ legend = ax[1].legend(loc='best', shadow=True)
 if plot_figure:
     plt.show()
 
-# Confusion matrix
+# save the model
+model_dir = './models/'
+if not os.path.exists(model_dir):
+  os.mkdir(model_dir)
+
+model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
+model.save(model_path)
+print('save model to {}'.format(model_path))
+
+model_weights_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
+model.save_weights(model_weights_path)
+print('save weights to {}'.format(model_weights_path))
+
+
+# -----------
+# Step 4: Make predictions
+
+# load the model
+model = load_model(model_path)
+model.load_weights(model_weights_path)
+
+test_pred = model.predict(test_img_x)
+
+
+# -----------
+# Step 5: Evaluation
+
+
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
@@ -360,14 +372,11 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
-# Predict the values from the validation dataset
-test_pred = model.predict(test_img_x)
-
-# Convert predictions classes to one hot vectors
+# convert predictions classes to one hot vectors
 test_pred_classes = np.argmax(test_pred, axis = 1)
-# results = pd.Series(results, name="Label")
+# results = pd.Series(test_pred_classes, name="Label")
 
-# Convert test observations to one hot vectors
+# convert test observations to one hot vectors
 test_true_classes = np.argmax(test_img_y, axis = 1)
 
 # compute the confusion matrix
@@ -381,6 +390,7 @@ print(confusion_mtx)
 
 # plot the confusion matrix
 plot_confusion_matrix(confusion_mtx, classes = range(10))
+
 if plot_figure:
     plt.show()
 
@@ -389,7 +399,6 @@ if plot_figure:
 # TODO: Display some error results
 test_true_classes = np.array(test_true_classes).reshape((test_img_x.shape[0], 1))
 test_pred_classes = np.array(test_pred_classes).reshape((test_img_x.shape[0], 1))
-
 
 error_indices = []
 for i, val in enumerate(test_true_classes):
@@ -405,7 +414,6 @@ print(list_error_product_id)
 
 acc = 1 - len(list_error_product_id) / len(list_product_id_test)
 print('accuracy {}'.format(acc))
-
 
 img = mpimg.imread(dict_img_path[list_error_product_id[0]])
 imgplot = plt.imshow(img)
