@@ -288,9 +288,9 @@ elif model_name == 'VGG16':
 
     add_model.add(Dense(256, kernel_initializer='glorot_uniform'))
     # add_model.add(Dense(1, activation='sigmoid'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Dropout(0.2))
+    add_model.add(BatchNormalization())
+    add_model.add(Activation('relu'))
+    add_model.add(Dropout(0.2))
 
     add_model.add(Dense(len(class_names), activation="softmax"))
 
