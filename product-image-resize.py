@@ -13,7 +13,8 @@ import os, sys
 dir_path = "data/images/"
 dirs = os.listdir(dir_path)
 
-img_width, img_height = 100, 100
+#img_width, img_height = 100, 100
+img_width, img_height = 80, 80
 dest_dir_path = "data/images_{}_{}/".format(img_width, img_height)
 if not os.path.exists(dest_dir_path):
     os.makedirs(dest_dir_path)
