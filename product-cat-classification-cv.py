@@ -41,10 +41,12 @@ from sklearn.metrics import classification_report
 
 from keras.utils.np_utils import to_categorical # convert to one-hot-encoding
 from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D
+from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D, Activation
 from keras.optimizers import RMSprop
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.callbacks import ReduceLROnPlateau
+from keras.layers.normalization import BatchNormalization
+from keras import callbacks
 
 
 # ---------------------
@@ -162,8 +164,6 @@ test_img_x = np.array(test_img_x)
 test_img_y = np.array(test_img_y)
 
 
-
-
 # transform category to one-hot encoding
 le = preprocessing.LabelEncoder()
 le.fit(class_names)
@@ -185,22 +185,54 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 # CNN hyperparameters
 epochs = 2
 batch_size = 128
+filters = [32, 16, 8]
+kernel_sizes = [15, 15, 15]
+strides = [5, 5, 5]
+pooling_sizes = [2, 2]
+str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[strides]{}-[pooling_sizes]{}'.format(epochs,
+                                                                                                                batch_size,
+                                                                                                                '_'.join(str(x) for x in filters),
+                                                                                                                '_'.join(str(x) for x in kernel_sizes),
+                                                                                                                '_'.join(str(x) for x in strides),
+                                                                                                                '_'.join(str(x) for x in pooling_sizes),
+                                                                                                                )
 
 model = Sequential()
 
-model.add(Conv2D(filters = 64, kernel_size = (5,5), padding = 'Same', activation ='relu', input_shape = (img_width, img_height, 3)))
-model.add(Conv2D(filters = 32, kernel_size = (5,5), padding = 'Same', activation ='relu'))
-model.add(MaxPool2D(pool_size=(2,2)))
-model.add(Dropout(0.25))
+model.add(Conv2D(filters = filters[0], kernel_size = (kernel_sizes[0], kernel_sizes[0]),
+                 padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)), kernel_initializer='glorot_uniform',
+                 #activation ='relu',
+                )
+model.add(BatchNormalization())
+model.add(Activation('relu'))
 
-model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
-model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
-model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
-model.add(Dropout(0.25))
+model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]), kernel_initializer='glorot_uniform',
+                 padding = 'Same', strides=strides[1],
+                 #activation ='relu'
+                 ))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+
+model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
+model.add(Dropout(0.2))
+
+model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
+                 padding = 'Same', strides=strides[2], kernel_initializer='glorot_uniform',
+                 #activation ='relu'
+                 ))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+
+model.add(MaxPool2D(pool_size=(pooling_sizes[1], pooling_sizes[1])))
+model.add(Dropout(0.2))
 
 model.add(Flatten())
-model.add(Dense(256, activation = "relu"))
-model.add(Dropout(0.5))
+#model.add(Dense(256, activation = "relu"))
+model.add(Dense(256, kernel_initializer='glorot_uniform'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+model.add(Dropout(0.2))
+
 model.add(Dense(len(class_names), activation = "softmax"))
 
 optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
@@ -231,9 +263,28 @@ datagen = ImageDataGenerator(
 datagen.fit(train_img_x)
 
 # Fit the model
+#Tensorboard log
+tf_log_dir = './tf-log/'
+if not os.path.exists(tf_log_dir):
+    os.makedirs(tf_log_dir)
+tb_cb = callbacks.TensorBoard(log_dir=tf_log_dir, histogram_freq=1)
+cbks = [tb_cb]
+
 history = model.fit_generator(datagen.flow(train_img_x, train_img_y, batch_size=batch_size),
                               epochs = epochs, validation_data = (val_img_x, val_img_y),
                               verbose = 2, steps_per_epoch=train_img_x.shape[0] // batch_size, callbacks=[learning_rate_reduction])
+
+model_dir = './models/'
+if not os.path.exists(model_dir):
+  os.mkdir(model_dir)
+
+model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
+model.save(model_path)
+print('save model to {}'.format(model_path))
+
+weight_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
+model.save_weights(weight_path)
+print('save weights to {}'.format(weight_path))
 
 
 # -----------
@@ -383,145 +434,6 @@ plt.show()
 
 
 
-# # -----------
-# # Step 4: NLP
-# # remove stop words
-# df_attribute = pd.read_csv(ATTRIBUTE_CSV_FILE)
-# print(df_attribute.head())
-# print(df_attribute.shape)
-# print(len(df_attribute['ProductId'].unique()))
-#
-# df_product_attribute = pd.merge(df_product, df_attribute, on=['ProductId'])
-# print(df_product_attribute.head())
-# print(df_product_attribute.shape)
-#
-# print(len(df_product_attribute['ProductId'].unique()))
-# print(len(df_product_attribute['AttributeValueName'].unique()))
-#
-# print(df_product_attribute.columns)
-# print(df_product_attribute.describe())
-#
-# list_product_id = df_attribute['ProductId'].unique()
-# dict_product_des = dict()
-#
-#
-# print('get product description.')
-# for product_id in list_product_id:
-#     if product_id in dict_product_des:
-#         print('product {} has more than one description'.format(product_id))
-#     df_sub = df_product_attribute[df_product_attribute['ProductId'] == product_id]
-#     # print(df_sub['Description'].values[0])
-#     dict_product_des[product_id] = df_sub['Description'].values[0]
-#
-# # create one-hot encoding for the attribute name
-# print('get product attribute.')
-# list_attribute = df_attribute['AttributeName'].unique()
-# dict_product_att = dict()
-# for product_id in list_product_id:
-#     dict_product_att[product_id] = dict()
-#     for attribute in list_attribute:
-#         dict_product_att[product_id][attribute] = 0
-#     list_product_attribute = df_product_attribute[df_product_attribute['ProductId'] == product_id]['AttributeName']
-#     # print(len(list_product_attribute))
-#     for attribute in list_product_attribute:
-#         dict_product_att[product_id][attribute] = 1
-#
-# nlp = False
-#
-# def cleanupDoc(s):
-#     stopset = set(stopwords.words('english'))
-#     stopset.add('wikipedia')
-#     tokens = text_to_word_sequence(s, filters="\"!'#$%&()*+,-˚˙./:;‘“<=·>?@[]^_`{|}~\t\n", lower=True, split=" ")
-#     cleanup = " ".join(filter(lambda word: word not in stopset, tokens))
-#     return cleanup
-#
-# if nlp:
-#     train_text = []
-#     train_attribute = dict()
-#
-#     for class_name in class_names:
-#         train_attribute[class_name] = []
-#
-#     for product_id in list_product_id_train:
-#         train_text.append(dict_product_des[product_id])
-#         for class_name in class_names:
-#             train_attribute[class_name].append(dict_product_att[product_id][class_name])
-#
-#     test_text = []
-#     test_attribute = dict()
-#
-#     for class_name in class_names:
-#         test_attribute[class_name] = []
-#
-#     for product_id in list_product_id_test:
-#         test_text.append(dict_product_des[product_id])
-#         for class_name in class_names:
-#             test_attribute[class_name].append(dict_product_att[product_id][class_name])
-#
-#     train_text = [cleanupDoc(text) for text in train_text]
-#     test_text = [cleanupDoc(text) for text in test_text]
-#
-#
-#     word_vectorizer = TfidfVectorizer(
-#         sublinear_tf=True,
-#         strip_accents='unicode',
-#         analyzer='word',
-#         token_pattern=r'\w{1,}',
-#         ngram_range=(1, 2),
-#         # max_features=50000,
-#         max_features=10000,
-#         )
-#     train_word_features = word_vectorizer.fit_transform(train_text)
-#     print('Word TFIDF 1/2')
-#     test_word_features = word_vectorizer.transform(test_text)
-#     print('Word TFIDF 2/2')
-#
-#     char_vectorizer = TfidfVectorizer(
-#         sublinear_tf=True,
-#         strip_accents='unicode',
-#         analyzer='char',
-#         stop_words='english',
-#         ngram_range=(2, 6),
-#         # max_features=50000,
-#         max_features=10000,
-#         )
-#     train_char_features = char_vectorizer.fit_transform(train_text)
-#     print('Char TFIDF 1/2')
-#     test_char_features = char_vectorizer.transform(test_text)
-#     print('Char TFIDF 2/2')
-#
-#     train_features = hstack([train_char_features, train_word_features])
-#     print('HStack 1/2')
-#     test_features = hstack([test_char_features, test_word_features])
-#     print('HStack 2/2')
-#
-#     pred_attribute = dict()
-#     scores = []
-#     for class_name in class_names:
-#         # print(class_name)
-#         train_target = train_attribute[class_name]
-#
-#         classifier = LogisticRegression(solver='sag')
-#         sfm = SelectFromModel(classifier, threshold=0.2)
-#
-#         # print(train_features.shape)
-#         train_sparse_matrix = sfm.fit_transform(train_features, train_target)
-#         # print(train_sparse_matrix.shape)
-#
-#         # train_sparse_matrix, valid_sparse_matrix, y_train, y_valid = train_test_split(train_sparse_matrix, train_target,
-#         #                                                                               test_size=0.05, random_state=42)
-#         test_sparse_matrix = sfm.transform(test_features)
-#
-#         cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
-#         scores.append(cv_score)
-#         # print('CV score for class {} is {}'.format(class_name, cv_score))
-#
-#         classifier.fit(train_sparse_matrix, train_target)
-#
-#         pred_attribute[class_name] = classifier.predict_proba(test_sparse_matrix)[:, 1]
-#
-#     # --------------
-#     # evaluate the NLP model
 
 
 
