@@ -364,7 +364,7 @@ model_path = ''
 if model_name == 'CNN':
     model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
 elif model_name == 'VGG16':
-    model_path = '{}cat-vgg16-{}-{}-{}.h5'.format(model_dir, epochs, batch_size)
+    model_path = '{}cat-vgg16-{}-{}.h5'.format(model_dir, epochs, batch_size)
 model.save(model_path)
 print('save model to {}'.format(model_path))
 
