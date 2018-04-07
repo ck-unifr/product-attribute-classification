@@ -211,11 +211,11 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 # ----------------------
 # CNN hyperparameters
 
-epochs = 2
+epochs = 200
 batch_size = 32
-filters = [16, 8, 8]
-kernel_sizes = [9, 9, 7]
-strides = [2, 2, 2]
+filters = [16, 16, 8, 8]
+kernel_sizes = [9, 9, 7, 7]
+strides = [2, 2, 2, 2]
 pooling_sizes = [2, 2]
 str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[strides]{}-[pooling_sizes]{}'.format(epochs,
                                                                                                                 batch_size,
@@ -246,6 +246,13 @@ model.add(Dropout(0.2))
 
 model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
                  padding = 'Same', strides=strides[2],
+                 #activation ='relu'
+                 ))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+
+model.add(Conv2D(filters = filters[3], kernel_size = (kernel_sizes[3], kernel_sizes[3]),
+                 padding = 'Same', strides=strides[3],
                  #activation ='relu'
                  ))
 model.add(BatchNormalization())
