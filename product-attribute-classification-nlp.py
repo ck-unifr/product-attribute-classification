@@ -178,36 +178,41 @@ dict_roc_auc_cv_scores = dict()
 for class_name in class_names:
     train_target = train_attribute[class_name]
 
-    classifier = LogisticRegression(solver='sag')
-    sfm = SelectFromModel(classifier, threshold=0.2)
+    if len(set(train_target)) > 1:
+        classifier = LogisticRegression(solver='sag')
+        sfm = SelectFromModel(classifier, threshold=0.2)
 
-    train_sparse_matrix = sfm.fit_transform(train_features, train_target)
-    # print(train_features.shape)
-    # print(train_sparse_matrix.shape)
+        train_sparse_matrix = sfm.fit_transform(train_features, train_target)
+        # print(train_features.shape)
+        # print(train_sparse_matrix.shape)
 
-    # train_sparse_matrix, valid_sparse_matrix, y_train, y_valid = train_test_split(train_sparse_matrix, train_target,
-    #                                                                               test_size=0.05, random_state=42)
-    test_sparse_matrix = sfm.transform(test_features)
+        # train_sparse_matrix, valid_sparse_matrix, y_train, y_valid = train_test_split(train_sparse_matrix, train_target,
+        #                                                                               test_size=0.05, random_state=42)
+        test_sparse_matrix = sfm.transform(test_features)
 
-    if train_sparse_matrix.shape[1] <= 0:
-        train_sparse_matrix = train_features
-        test_sparse_matrix = test_features
+        if train_sparse_matrix.shape[1] <= 0:
+            train_sparse_matrix = train_features
+            test_sparse_matrix = test_features
 
-    cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
-    dict_roc_auc_cv_scores[class_name] = cv_score
-    print('CV roc auc score for class {} is {}'.format(class_name, cv_score))
+        #if len(set(train_target)) > 1:
+        #    cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
+        #    dict_roc_auc_cv_scores[class_name] = cv_score
+        #    print('CV roc auc score for class {} is {}'.format(class_name, cv_score))
 
-    classifier.fit(train_sparse_matrix, train_target)
+        classifier.fit(train_sparse_matrix, train_target)
 
-    pred_attribute[class_name] = classifier.predict_proba(test_sparse_matrix)[:, 1]
-    #pred_attribute[class_name] = classifier.predict(test_sparse_matrix)
+        pred_attribute[class_name] = classifier.predict_proba(test_sparse_matrix)[:, 1]
+        #pred_attribute[class_name] = classifier.predict(test_sparse_matrix)
 
-    test_target = test_attribute[class_name]
-    if(len(set(test_target)) > 1):
-        score = roc_auc_score(test_target, pred_attribute[class_name])
-        dict_roc_auc_scores[class_name] = score
+        test_target = test_attribute[class_name]
+        if(len(set(test_target)) > 1):
+            score = roc_auc_score(test_target, pred_attribute[class_name])
+            dict_roc_auc_scores[class_name] = score
 
-    print('test roc auc score for class {} is {}'.format(class_name, score))
+        #print('test roc auc score for class {} is {}'.format(class_name, score))
+
+    else:
+        print('class {} has only {}'.format(class_name, set(train_target)[0]))
 
 
 # ---------

@@ -26,14 +26,15 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 
 from keras.utils.np_utils import to_categorical # convert to one-hot-encoding
-from keras.models import Sequential, load_model
+from keras.models import Sequential, load_model, Model
 from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D, Activation
 from keras.optimizers import RMSprop
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.callbacks import ReduceLROnPlateau
 from keras.layers.normalization import BatchNormalization
 from keras import callbacks
-
+from keras import applications
+from keras import optimizers
 
 np.random.seed(42)
 
@@ -142,6 +143,8 @@ print('number of trainig samples {}'.format(len(list_product_id_test)))
 # https://machinelearningmastery.com/image-augmentation-deep-learning-keras/
 # https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
 # https://github.com/tatsuyah/CNN-Image-Classifier/blob/master/src/train-multiclass.py
+# https://www.kaggle.com/fujisan/use-keras-pre-trained-vgg16-acc-98
+
 
 class_names = list_category
 
@@ -212,7 +215,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 # ----------------------
 # CNN hyperparameters
 
-epochs = 200
+epochs = 2
 batch_size = 32
 filters = [16, 16, 8, 8]
 kernel_sizes = [11, 11, 7, 7]
@@ -226,50 +229,77 @@ str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[stride
                                                                                                                 '_'.join(str(x) for x in pooling_sizes),
                                                                                                                 )
 
-model = Sequential()
+#model_name = 'CNN'
+model_name = 'VGG16'
 
-model.add(Conv2D(filters = filters[0], kernel_size = (kernel_sizes[0], kernel_sizes[0]),
-                 padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)),
-                 #activation ='relu',
-                )
-model.add(BatchNormalization())
-model.add(Activation('relu'))
+model = None
+if model_name == 'CNN':
+    model = Sequential()
 
-model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]),
-                 padding = 'Same', strides=strides[1],
-                 #activation ='relu'
-                 ))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
+    model.add(Conv2D(filters = filters[0], kernel_size = (kernel_sizes[0], kernel_sizes[0]),
+                     padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)),
+                     #activation ='relu',
+                    )
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
 
-model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
-model.add(Dropout(0.2))
+    model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]),
+                     padding = 'Same', strides=strides[1],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
 
-model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
-                 padding = 'Same', strides=strides[2],
-                 #activation ='relu'
-                 ))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
+    model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
+    model.add(Dropout(0.2))
 
-model.add(Conv2D(filters = filters[3], kernel_size = (kernel_sizes[3], kernel_sizes[3]),
-                 padding = 'Same', strides=strides[3],
-                 #activation ='relu'
-                 ))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
+    model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
+                     padding = 'Same', strides=strides[2],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
 
-model.add(MaxPool2D(pool_size=(pooling_sizes[1], pooling_sizes[1])))
-model.add(Dropout(0.2))
+    model.add(Conv2D(filters = filters[3], kernel_size = (kernel_sizes[3], kernel_sizes[3]),
+                     padding = 'Same', strides=strides[3],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
 
-model.add(Flatten())
-#model.add(Dense(256, activation = "relu"))
-model.add(Dense(256, kernel_initializer='glorot_uniform'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Dropout(0.2))
+    model.add(MaxPool2D(pool_size=(pooling_sizes[1], pooling_sizes[1])))
+    model.add(Dropout(0.2))
 
-model.add(Dense(len(class_names), activation = "softmax"))
+    model.add(Flatten())
+    #model.add(Dense(256, activation = "relu"))
+    model.add(Dense(256, kernel_initializer='glorot_uniform'))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(Dropout(0.2))
+
+    model.add(Dense(len(class_names), activation = "softmax"))
+
+elif model_name == 'VGG16':
+    # use pre-trained VGG16
+    base_model = applications.VGG16(weights='imagenet', include_top=False, input_shape=(img_width, img_height, 3))
+
+    add_model = Sequential()
+    add_model.add(Flatten(input_shape=base_model.output_shape[1:]))
+
+    add_model.add(Dense(256, kernel_initializer='glorot_uniform'))
+    # add_model.add(Dense(1, activation='sigmoid'))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(Dropout(0.2))
+
+    add_model.add(Dense(len(class_names), activation="softmax"))
+
+    model = Model(inputs=base_model.input, outputs=add_model(base_model.output))
+
+    # model.compile(loss='binary_crossentropy', optimizer=optimizers.SGD(lr=1e-4, momentum=0.9),
+    #              metrics=['accuracy'])
+
+print(model.summary())
 
 optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
 
@@ -330,11 +360,19 @@ model_dir = './models/'
 if not os.path.exists(model_dir):
   os.mkdir(model_dir)
 
-model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
+model_path = ''
+if model_name == 'CNN':
+    model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
+elif model_name == 'VGG16':
+    model_path = '{}cat-vgg16-{}-{}-{}.h5'.format(model_dir, epochs, batch_size)
 model.save(model_path)
 print('save model to {}'.format(model_path))
 
-model_weights_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
+model_weights_path = ''
+if model_name == 'CNN':
+    model_weights_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
+elif model_name == 'VGG16':
+    model_weights_path = '{}cat-vgg16-weights-{}-{}.h5'.format(model_dir, epochs, batch_size)
 model.save_weights(model_weights_path)
 print('save weights to {}'.format(model_weights_path))
 
@@ -428,6 +466,8 @@ imgplot = plt.imshow(img)
 
 if plot_figure:
     plt.show()
+
+
 
 
 
