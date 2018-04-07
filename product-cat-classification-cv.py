@@ -1,4 +1,3 @@
-#
 # Farfetech case study
 #
 # Product category classification with CNN
@@ -8,32 +7,18 @@
 #
 
 
-import gc
 import pandas as pd
 import numpy as np
 import os
+import sys
 import itertools
+import operator
 from random import shuffle
 
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import seaborn as sns
 # %matplotlib inline
 
-np.random.seed(42)
-
-
-from scipy.sparse import csr_matrix, hstack
-
-from nltk.corpus import stopwords
-
-from keras.preprocessing.text import text_to_word_sequence
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
-from sklearn.feature_selection import SelectFromModel
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
@@ -49,13 +34,18 @@ from keras.layers.normalization import BatchNormalization
 from keras import callbacks
 
 
+np.random.seed(42)
+
 # ---------------------
 # Define the file paths
 PRODUCT_CSV_FILE = 'data/products.csv'
 ATTRIBUTE_CSV_FILE = 'data/attributes.csv'
 
+plot_figure = False
+
 # -----------
-# Step 1. Read and explor the data
+# Step 1. Read and explore the data
+
 df_product = pd.read_csv(PRODUCT_CSV_FILE)
 
 # print(df_product.head())
@@ -66,31 +56,63 @@ list_product_id = df_product['ProductId'].unique()
 list_product_id = np.array(list_product_id)
 print('number of products {}'.format(list_product_id.shape[0]))
 
-# get product category
-print('get product category.')
 list_category = df_product['Category'].unique()
 list_category = np.array(list_category)
 print('number of category {}'.format(list_category.shape[0]))
 
+# create a dictionary with key: product id -> value: category
+# in this csv file we can find that each product belongs only to one category
 dict_product_cat = dict()
 for product_id in list_product_id:
     category = df_product[df_product['ProductId'] == product_id]['Category'].values
-    # if (len(category)) > 1:
-    #     print('>1')
+    if (len(category)) > 1:
+         print('product {} belongs to more than two categories.'.format(product_id))
     dict_product_cat[product_id] = category[0]
 
-# key: category  value: number of products
+# create a dictionary with key: category -> value: a list of product id
 dict_cat = dict()
+dict_cat_nb_products = dict()
+nb_products_cat = []
 for category in list_category:
     products = df_product[df_product['Category'] == category]['ProductId'].values
     dict_cat[category] = products
+    dict_cat_nb_products[category] = len(products)
+    nb_products_cat.append(len(products))
     # print('category {}  number of products {}'.format(category, len(products)))
 
 
+# show number of products per category
+print('plot number of products per category')
+plt.bar(range(len(dict_cat_nb_products)), list(dict_cat_nb_products.values()), align='center')
+plt.xticks(range(len(dict_cat_nb_products)), list(dict_cat_nb_products.keys()))
+plt.xticks(rotation=90)
+# # for python 2.x:
+# plt.bar(range(len(dict_cat_nb_products)), dict_cat_nb_products.values(), align='center')  # python 2.x
+# plt.xticks(range(len(dict_cat_nb_products)), dict_cat_nb_products.keys())  # in python 2.x
+if plot_figure:
+    plt.show()
+
+# get max and min number of products per category
+min_products = sys.maxsize
+min_products_cat = ''
+max_products = 0
+max_products_cat = ''
+for category, nb_products in dict_cat_nb_products.items():
+    if nb_products < min_products:
+        min_products = nb_products
+        min_products_cat = category
+    if nb_products > max_products:
+        max_products = nb_products
+        max_products_cat = category
+
+print('category {} has the max number of products, i.e., {}'.format(max_products_cat, max_products))
+print('category {} has the min number of products, i.e., {}'.format(min_products_cat, min_products))
+print('mean number of products per category: {}'.format(np.mean(nb_products_cat)))
+print('standard deviation of number of products per category: {}'.format(np.std(nb_products_cat)))
 
 
-# get mapping product_id -> articlephoto_id
-# ArticlePhotoId
+# create a dictionary with key: photo id -> value: product id
+# note one photo belongs only to one product
 list_photo_id = df_product['ArticlePhotoId'].unique()
 dict_photo_product_id = dict()
 for photo_id in list_photo_id:
@@ -98,28 +120,30 @@ for photo_id in list_photo_id:
 
 
 # ---------
-# Step 2: Prepare
-# prepare train, and test sets
+# Step 2: Prepare train, and test sets
+
 shuffle(list_product_id)
 percentage_train_set = 0.7
 list_product_id_train = list_product_id[0:int(percentage_train_set*len(list_product_id))]
 list_product_id_test = list_product_id[len(list_product_id_train):]
 
-# print(len(list_product_id))
-# print(len(list_product_id_train))
-# print(len(list_product_id_test))
+print('number of samples {}'.format(len(list_product_id)))
+print('number of trainig samples {}'.format(len(list_product_id_train)))
+print('number of trainig samples {}'.format(len(list_product_id_test)))
+
+
 
 # -----------
 # Step 3: Train a CNN model for category classification
 
-# category detection
-class_names = list_category
-
-# ideas are taken from
+# The ideas are taken from:
 # https://www.kaggle.com/yassineghouzam/introduction-to-cnn-keras-0-997-top-6
 # https://machinelearningmastery.com/image-augmentation-deep-learning-keras/
 # https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
 # https://github.com/tatsuyah/CNN-Image-Classifier/blob/master/src/train-multiclass.py
+
+class_names = list_category
+
 img_width, img_height = 100, 100
 
 train_img_x = []
@@ -127,28 +151,26 @@ train_img_y = []
 test_img_x = []
 test_img_y = []
 
-# key: product id, value: image path
-dict_img_path = dict()
-
-# ----
 # get training and test images
 img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
 dirs = os.listdir(img_dir_path)
 
+# key: product id, value: image path
+dict_img_path = dict()
+
 for file_name in dirs:
     file_path = os.path.join(img_dir_path, file_name)
 
-    img = load_img(file_path)      # this is a PIL image
-    x = img_to_array(img)          # this is a Numpy array with shape (img_width, img_height, 3)
-    # x = x.reshape((1,) + x.shape)  # this is a Numpy array with shape (1, 3, img_width, img_height)
+    img = load_img(file_path)         # this is a PIL image
+    x = img_to_array(img)             # this is a Numpy array with shape (img_width, img_height, 3)
+    # x = x.reshape((1,) + x.shape)   # this is a Numpy array with shape (1, 3, img_width, img_height)
 
     product_id = int(file_name.split('_')[0])
 
     dict_img_path[product_id] = file_path
-    # print(product_id)
 
-    # if not product_id in list_product_id:
-    #     print('photo {} does not have product information'.format(photo_id))
+    if not product_id in list_product_id:
+        print('photo {} does not have product information'.format(file_path))
 
     if product_id in list_product_id:
         if product_id in list_product_id_train:
@@ -170,19 +192,24 @@ le.fit(class_names)
 train_img_y = le.transform(train_img_y)
 test_img_y = le.transform(test_img_y)
 
-# show number of samples per class
-# plt.hist(train_img_y.tolist(), range(min(train_img_y), max(train_img_y)+1))
-# plt.show()
+
+# show number of samples per class in the train set
+plt.hist(train_img_y.tolist(), range(min(train_img_y), max(train_img_y)+1))
+if plot_figure:
+    plt.show()
 
 
 train_img_y = to_categorical(train_img_y, num_classes = len(class_names))
 test_img_y = to_categorical(test_img_y, num_classes = len(class_names))
 
-# Split the train and the validation set for the fitting
+
+# split the train and the validation set for the fitting
 train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, train_img_y, test_size = 0.1, random_state=42)
 
 
+# ----------------------
 # CNN hyperparameters
+
 epochs = 2
 batch_size = 128
 filters = [32, 16, 8]
