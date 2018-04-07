@@ -214,7 +214,7 @@ epochs = 2
 batch_size = 128
 filters = [32, 16, 8]
 kernel_sizes = [15, 15, 15]
-strides = [5, 5, 5]
+strides = [2, 2, 2]
 pooling_sizes = [2, 2]
 str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[strides]{}-[pooling_sizes]{}'.format(epochs,
                                                                                                                 batch_size,
@@ -227,13 +227,13 @@ str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[stride
 model = Sequential()
 
 model.add(Conv2D(filters = filters[0], kernel_size = (kernel_sizes[0], kernel_sizes[0]),
-                 padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)), kernel_initializer='glorot_uniform',
+                 padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)),
                  #activation ='relu',
                 )
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 
-model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]), kernel_initializer='glorot_uniform',
+model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]),
                  padding = 'Same', strides=strides[1],
                  #activation ='relu'
                  ))
@@ -243,7 +243,7 @@ model.add(Activation('relu'))
 model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
 model.add(Dropout(0.2))
 
-model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]), kernel_initializer='glorot_uniform',
+model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
                  padding = 'Same', strides=strides[2],
                  #activation ='relu'
                  ))
@@ -273,7 +273,7 @@ learning_rate_reduction = ReduceLROnPlateau(monitor='val_acc',
                                             min_lr=0.00001)
 
 # -----------
-# Data augmentation
+# data augmentation
 datagen = ImageDataGenerator(
         featurewise_center=False,               # set input mean to 0 over the dataset
         samplewise_center=False,                # set each sample mean to 0
