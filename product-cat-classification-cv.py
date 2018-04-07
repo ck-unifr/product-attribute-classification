@@ -215,7 +215,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 # ----------------------
 # CNN hyperparameters
 
-epochs = 2
+epochs = 40
 batch_size = 32
 filters = [16, 16, 8, 8]
 kernel_sizes = [11, 11, 7, 7]
@@ -301,7 +301,8 @@ elif model_name == 'VGG16':
 
 print(model.summary())
 
-optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
+#optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
+optimizer = optimizers.SGD(lr=1e-3, momentum=0.9)
 
 model.compile(optimizer = optimizer , loss = "categorical_crossentropy", metrics=["accuracy"])
 
