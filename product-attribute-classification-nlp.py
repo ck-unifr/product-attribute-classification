@@ -257,7 +257,7 @@ for class_name in class_names:
         print('class {} has only {}'.format(class_name, len(set(train_target))))
 
 
-for key, value in dict_roc_auc_scores:
+for key, value in dict_roc_auc_scores.items():
     print(key)
     print(value)
 
