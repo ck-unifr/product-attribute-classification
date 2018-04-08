@@ -252,9 +252,6 @@ for class_name in class_names:
             score = roc_auc_score(test_target, pred_attribute[class_name])
             dict_roc_auc_scores[class_name] = score
 
-        score = roc_auc_score(test_target, pred_attribute[class_name])
-        dict_roc_auc_scores[class_name] = score
-
         #print('test roc auc score for class {} is {}'.format(class_name, score))
     else:
         print('class {} has only {}'.format(class_name, len(set(train_target))))
