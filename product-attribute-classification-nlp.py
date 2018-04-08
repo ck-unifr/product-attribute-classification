@@ -254,7 +254,7 @@ for class_name in class_names:
 
         #print('test roc auc score for class {} is {}'.format(class_name, score))
     else:
-        print('class {} has only {}'.format(class_name, len(set(train_target))))
+        print('{} has only {} class sample'.format(class_name, len(set(train_target))))
 
 
 for key, value in dict_roc_auc_scores.items():
