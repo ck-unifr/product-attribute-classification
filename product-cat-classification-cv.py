@@ -32,9 +32,7 @@ from keras.optimizers import RMSprop
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.callbacks import ReduceLROnPlateau
 from keras.layers.normalization import BatchNormalization
-from keras import callbacks
-from keras import applications
-from keras import optimizers
+from keras import callbacks, applications, optimizers
 
 np.random.seed(42)
 
@@ -63,7 +61,7 @@ list_category = np.array(list_category)
 print('number of category {}'.format(list_category.shape[0]))
 
 # create a dictionary with key: product id -> value: category
-# in this csv file we can find that each product belongs only to one category
+# in this csv file we can find that each product belongs to only one category
 dict_product_cat = dict()
 for product_id in list_product_id:
     category = df_product[df_product['ProductId'] == product_id]['Category'].values
@@ -124,8 +122,10 @@ for photo_id in list_photo_id:
 # ---------
 # Step 2: Prepare train, and test sets
 
-shuffle(list_product_id)
 percentage_train_set = 0.7
+
+shuffle(list_product_id)
+
 list_product_id_train = list_product_id[0:int(percentage_train_set*len(list_product_id))]
 list_product_id_test = list_product_id[len(list_product_id_train):]
 
@@ -138,7 +138,7 @@ print('number of trainig samples {}'.format(len(list_product_id_test)))
 # -----------
 # Step 3: Train a CNN model for category classification
 
-# The ideas are taken from:
+# References:
 # https://www.kaggle.com/yassineghouzam/introduction-to-cnn-keras-0-997-top-6
 # https://machinelearningmastery.com/image-augmentation-deep-learning-keras/
 # https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
@@ -156,7 +156,9 @@ train_img_y = []
 test_img_x = []
 test_img_y = []
 
+# ------------
 # get training and test images
+
 img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
 dirs = os.listdir(img_dir_path)
 
@@ -215,7 +217,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 # ----------------------
 # CNN hyperparameters
 
-epochs = 40
+epochs = 3
 batch_size = 32
 filters = [16, 16, 8, 8]
 kernel_sizes = [11, 11, 7, 7]
@@ -462,15 +464,18 @@ print(list_error_product_id)
 acc = 1 - len(list_error_product_id) / len(list_product_id_test)
 print('accuracy {}'.format(acc))
 
-img = mpimg.imread(dict_img_path[list_error_product_id[0]])
+index = 0
+img = mpimg.imread(dict_img_path[list_error_product_id[index]])
 imgplot = plt.imshow(img)
+plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_error_product_id[index], test_true_classes[index], test_pred_classes[index]))
 
 if plot_figure:
     plt.show()
 
 
 
-
-
 # ---------
 # Future work
+# - Transfer learning
+# - Data augmentation
+# - Combine vision and text information
