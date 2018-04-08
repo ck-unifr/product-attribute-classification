@@ -248,13 +248,21 @@ for class_name in class_names:
         #pred_attribute[class_name] = classifier.predict(test_sparse_matrix)
 
         test_target = test_attribute[class_name]
-        if(len(set(test_target)) > 1):
+        if (len(set(test_target)) > 1):
             score = roc_auc_score(test_target, pred_attribute[class_name])
             dict_roc_auc_scores[class_name] = score
+
+        score = roc_auc_score(test_target, pred_attribute[class_name])
+        dict_roc_auc_scores[class_name] = score
 
         #print('test roc auc score for class {} is {}'.format(class_name, score))
     else:
         print('class {} has only {}'.format(class_name, len(set(train_target))))
+
+
+for key, value in dict_roc_auc_scores:
+    print(key)
+    print(value)
 
 
 # ---------
