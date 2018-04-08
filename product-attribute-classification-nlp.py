@@ -238,10 +238,9 @@ for class_name in class_names:
             train_sparse_matrix = train_features
             test_sparse_matrix = test_features
 
-        #if len(set(train_target)) > 1:
-        #    cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
-        #    dict_roc_auc_cv_scores[class_name] = cv_score
-        #    print('CV roc auc score for class {} is {}'.format(class_name, cv_score))
+        #cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
+        #dict_roc_auc_cv_scores[class_name] = cv_score
+        #print('CV roc auc score for class {} is {}'.format(class_name, cv_score))
 
         classifier.fit(train_sparse_matrix, train_target)
 
@@ -254,9 +253,8 @@ for class_name in class_names:
             dict_roc_auc_scores[class_name] = score
 
         #print('test roc auc score for class {} is {}'.format(class_name, score))
-
     else:
-        print('class {} has only {}'.format(class_name, set(train_target)[0]))
+        print('class {} has only {}'.format(class_name, len(set(train_target))))
 
 
 # ---------
