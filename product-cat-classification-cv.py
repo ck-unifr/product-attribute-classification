@@ -432,6 +432,9 @@ test_true_classes = np.argmax(test_img_y, axis = 1)
 test_true_classes = le.inverse_transform(test_true_classes)
 test_pred_classes = le.inverse_transform(test_pred_classes)
 
+acc_score =accuracy_score(test_true_classes, test_pred_classes)
+print('accuracy {}'.format(acc_score))
+
 print(classification_report(test_true_classes, test_pred_classes, target_names=class_names))
 
 confusion_mtx = confusion_matrix(test_true_classes, test_pred_classes)
@@ -444,34 +447,62 @@ if plot_figure:
     plt.show()
 
 
+
 # ----------
-# TODO: Display some error results
+# Display some error results
+
 test_true_classes = np.array(test_true_classes).reshape((test_img_x.shape[0], 1))
 test_pred_classes = np.array(test_pred_classes).reshape((test_img_x.shape[0], 1))
 
 error_indices = []
+correct_indices = []
 for i, val in enumerate(test_true_classes):
     if test_true_classes[i][0] != test_pred_classes[i][0]:
         error_indices.append(i)
+    else:
+        correct_indices.append(i)
 
 list_error_product_id = []
+list_error_product_true_class = []
+list_error_product_pred_class = []
 for i in error_indices:
     list_error_product_id.append(list_product_id_test[i])
-
+    list_error_product_true_class.append(test_true_classes[i][0])
+    list_error_product_pred_class.append(test_pred_classes[i][0])
 print('error classified products')
 print(list_error_product_id)
 
-acc = 1 - len(list_error_product_id) / len(list_product_id_test)
-print('accuracy {}'.format(acc))
+list_correct_product_id = []
+list_correct_product_true_class = []
+list_correct_product_pred_class = []
+for i in correct_indices:
+    list_correct_product_id.append(list_product_id_test[i])
+    list_correct_product_true_class.append(test_true_classes[i][0])
+    list_correct_product_pred_class.append(test_pred_classes[i][0])
+print('correct classified products')
+print(list_correct_product_id)
 
-index = 0
-img = mpimg.imread(dict_img_path[list_error_product_id[index]])
-imgplot = plt.imshow(img)
-plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_error_product_id[index], test_true_classes[index], test_pred_classes[index]))
+print('{} / {} products are classified correctly'.format(len(correct_indices), test_true_classes.shape[0]))
+# acc = 1 - len(list_error_product_id) / len(list_product_id_test)
+# print('accuracy {}'.format(acc))
 
-if plot_figure:
-    plt.show()
+for index in range(0, 10):
+    img = mpimg.imread(dict_img_path[list_error_product_id[index]])
+    imgplot = plt.imshow(img)
+    plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_error_product_id[index],
+                                                                 list_error_product_true_class[index],
+                                                                 list_error_product_pred_class[index]))
+    if plot_figure:
+        plt.show()
 
+for index in range(0, 10):
+    img = mpimg.imread(dict_img_path[list_correct_product_id[index]])
+    imgplot = plt.imshow(img)
+    plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_correct_product_id[index],
+                                                                 list_correct_product_true_class[index],
+                                                                 list_correct_product_pred_class[index]))
+    if plot_figure:
+        plt.show()
 
 
 # ---------
