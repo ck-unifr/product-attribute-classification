@@ -7,6 +7,7 @@
 # Date: Apr, 2018
 #
 
+import sys
 
 import pandas as pd
 import numpy as np
@@ -16,7 +17,6 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import seaborn as sns
 # %matplotlib inline
-
 
 from scipy.sparse import csr_matrix, hstack
 
@@ -38,17 +38,21 @@ np.random.seed(42)
 PRODUCT_CSV_FILE = 'data/products.csv'
 ATTRIBUTE_CSV_FILE = 'data/attributes.csv'
 
+attribute_name_col_name = 'AttributeName'
 attribute_value_col_name = 'AttributeValueName'
+attribute_col_name = 'Attribute'
 product_id_col_name = 'ProductId'
 product_description_col_name = 'Description'
 
 # -----------
 # Step 1. Read and explore the data
 df_product = pd.read_csv(PRODUCT_CSV_FILE)
+# print(df_product.describe())
 # print(df_product.head())
 # print(df_product.shape)
 
 df_attribute = pd.read_csv(ATTRIBUTE_CSV_FILE)
+df_attribute[attribute_col_name] = df_attribute[attribute_name_col_name] + '-'  + df_attribute[attribute_value_col_name]
 # print(df_attribute.head())
 # print(df_attribute.shape)
 
@@ -58,12 +62,12 @@ df_product_attribute = pd.merge(df_product, df_attribute, on=[product_id_col_nam
 #print(df_product_attribute.columns)
 #print(df_product_attribute.describe())
 
-print('number of attribute value names: {}'.format(len(df_product_attribute[attribute_value_col_name].unique())))
+print('number of attributes: {}'.format(len(df_product_attribute[attribute_col_name].unique())))
 
 list_product_id = df_attribute[product_id_col_name].unique()
 print('number of products: {}'.format(len(list_product_id)))
 
-# create a dictionary, key: product id -> value: description
+# Create a dictionary, key: product id -> value: description
 dict_product_des = dict()
 for product_id in list_product_id:
     # we assume that one product has only one description.
@@ -73,23 +77,57 @@ for product_id in list_product_id:
     dict_product_des[product_id] = df_sub[product_description_col_name].values[0]
 
 
-# create a dictionary, key: product id -> value: one-hot encoding list of attribute value name
-list_attribute_value = df_attribute[attribute_value_col_name].unique()
+# Create a dictionary, key: attributes -> value: product id list
+list_attribute = df_product_attribute[attribute_col_name].unique()
+dict_attribute = dict()
+dict_attribute_nb_products = dict()
+for attribute in list_attribute:
+    if attribute not in dict_attribute:
+        dict_attribute[attribute] = []
+    dict_attribute[attribute].append(df_product_attribute[df_product_attribute[attribute_col_name] == attribute][product_id_col_name].values)
+
+nb_products_attribute = []
+for attribute in list_attribute:
+    dict_attribute_nb_products[attribute] = len(dict_attribute[attribute][0])
+    nb_products_attribute.append(len(dict_attribute[attribute][0]))
+
+
+# Get max and min number of products per attribute
+min_products = sys.maxsize
+min_products_attribute = ''
+max_products = 0
+max_products_attribute = ''
+for category, nb_products in dict_attribute_nb_products.items():
+    if nb_products < min_products:
+        min_products = nb_products
+        min_products_attribute = category
+    if nb_products > max_products:
+        max_products = nb_products
+        max_products_cat = category
+
+print('attribute {} has the max number of products, i.e., {}'.format(max_products_attribute, max_products))
+print('attribute {} has the min number of products, i.e., {}'.format(min_products_attribute, min_products))
+print('mean number of products per attribute: {}'.format(round(np.mean(nb_products_attribute), 2)))
+print('standard deviation of number of products per attribute: {}'.format(round(np.std(nb_products_attribute), 2)))
+
+
+# Create a dictionary, key: product id -> value: one-hot encoding list of attributes
+list_attribute_value = df_attribute[attribute_col_name].unique()
 dict_product_att = dict()
 for product_id in list_product_id:
     # one-hot encoding list of attribute value name
     dict_product_att[product_id] = dict()
     for attribute in list_attribute_value:
         dict_product_att[product_id][attribute] = 0
-    list_product_attribute = df_product_attribute[df_product_attribute[product_id_col_name] == product_id][attribute_value_col_name]
+    list_product_attribute = df_product_attribute[df_product_attribute[product_id_col_name] == product_id][attribute_col_name]
     for attribute in list_product_attribute:
         dict_product_att[product_id][attribute] = 1
 
 
 # ---------
-# Step 2: Prepare train, and test sets
-shuffle(list_product_id)
+# Step 2: Prepare train and test sets
 percentage_train_set = 0.7
+shuffle(list_product_id)
 list_product_id_train = list_product_id[0:int(percentage_train_set*len(list_product_id))]
 list_product_id_test = list_product_id[len(list_product_id_train):]
 
@@ -99,18 +137,13 @@ print('number of test samples: {}'.format(len(list_product_id_test)))
 
 
 # -----------
-# Step 4: NLP for attribute value classification
-
-# remove stop words
-def cleanupDoc(s):
-    stopset = set(stopwords.words('english'))
-    stopset.add('wikipedia')
-    tokens = text_to_word_sequence(s, filters="\"!'#$%&()*+,-˚˙./:;‘“<=·>?@[]^_`{|}~\t\n", lower=True, split=" ")
-    cleanup = " ".join(filter(lambda word: word not in stopset, tokens))
-    return cleanup
-
+# Step 4: NLP for attribute classification
 
 class_names = list_attribute_value
+
+
+# -----------------
+# Prepare data sets
 
 train_text = []
 train_attribute = dict()
@@ -134,10 +167,21 @@ for product_id in list_product_id_test:
     for class_name in class_names:
         test_attribute[class_name].append(dict_product_att[product_id][class_name])
 
+# -------------
+# Remove stop words
+def cleanupDoc(s):
+    stopset = set(stopwords.words('english'))
+    stopset.add('wikipedia')
+    tokens = text_to_word_sequence(s, filters="\"!'#$%&()*+,-˚˙./:;‘“<=·>?@[]^_`{|}~\t\n", lower=True, split=" ")
+    cleanup = " ".join(filter(lambda word: word not in stopset, tokens))
+    return cleanup
 
 train_text = [cleanupDoc(text) for text in train_text]
 test_text = [cleanupDoc(text) for text in test_text]
 
+
+# --------------
+# Extract features
 word_vectorizer = TfidfVectorizer(
     sublinear_tf=True,
     strip_accents='unicode',
