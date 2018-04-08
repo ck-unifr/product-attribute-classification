@@ -264,3 +264,6 @@ for key, value in dict_roc_auc_scores:
 
 # ---------
 # Future work
+# - Given a product description, predict the attribute values
+# - Use word2vec as features
+# - Combine vision with text feature for attribute classification
