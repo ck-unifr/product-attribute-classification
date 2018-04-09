@@ -105,10 +105,10 @@ for file_name in dirs:
 #     print(product_id)
 
 
-prepare_img_data = True
-prepare_text_data = True
+prepare_img_data = False
+prepare_text_data = False
 
-TRAIN_MODEL = True
+TRAIN_MODEL = False
 EVALUATE_MODEL = True
 
 # ---------
@@ -531,7 +531,8 @@ def evaluate_model(model, descriptions, photos, tokenizer, max_length):
 # prepare test set
 if EVALUATE_MODEL:
     # load the model
-    filename = 'model-ep002-loss3.245-val_loss3.612.h5'
+    # filename = 'model-ep002-loss3.245-val_loss3.612.h5'
+    filename = 'model_1.h5'
     model = load_model(filename)
     # evaluate model
     evaluate_model(model, test_descriptions, test_features, tokenizer, max_length)
