@@ -95,6 +95,10 @@ for file_name in dirs:
     else:
         list_product_id.append(product_id)
 
+# print('PRODUCT IDS')
+# for product_id in list_product_id:
+#     print(product_id)
+
 
 prepare_img_data = True
 prepare_text_data = True
@@ -144,7 +148,7 @@ if prepare_img_data:
 
         product_id = int(file_name.split('_')[0])
 
-        if not product_id in list_product_id:
+        if not int(product_id) in list_product_id:
             print('photo {} does not have product information'.format(file_path))
         else:
             dict_product_img[product_id] = x
@@ -153,7 +157,16 @@ if prepare_img_data:
         if product_id not in dict_product_img:
             print('product {} does not have an image'.format(product_id))
 
+    print('product image id')
+    for product_id, _ in dict_product_img.items():
+        print(product_id)
+
     dict_product_img_features = extract_features(dict_product_img, img_width, img_height, 3)
+
+    print('product features id')
+    for product_id, _ in dict_product_img_features.items():
+        print(product_id)
+
     # save features to file
     dump(dict_product_img_features, open(product_image_feature_file_path, 'wb'))
 
@@ -299,6 +312,11 @@ def load_photo_features(filename, list_product_id):
     # filter features
     features = {k: all_features[k] for k in dataset}
 
+    print('key')
+    print(len(dataset))
+    for key in features.keys():
+        print(key)
+
     return features
 
 
@@ -319,8 +337,8 @@ def create_tokenizer(descriptions):
 
 # calculate the length of the description with the most words
 def max_length(descriptions):
-	lines = to_lines(descriptions)
-	return max(len(d.split()) for d in lines)
+    lines = to_lines(descriptions)
+    return max(len(d.split()) for d in lines)
 
 # ---------
 # encode the text
