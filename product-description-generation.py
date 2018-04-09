@@ -45,6 +45,8 @@ from pickle import load
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import load_model
+from keras.applications.vgg16 import preprocess_input
+
 from nltk.translate.bleu_score import corpus_bleu
 
 np.random.seed(42)
@@ -82,8 +84,11 @@ for photo_id in list_photo_id:
 
 # update the list_product_id, such that each product should have an image
 list_product_id = []
-img_width, img_height = 100, 100
-img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
+# img_width, img_height = 100, 100
+# img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
+# img_width, img_height = 100, 100
+img_dir_path = "data/images/"
+
 dirs = os.listdir(img_dir_path)
 
 for file_name in dirs:
@@ -110,9 +115,10 @@ EVALUATE_MODEL = True
 # Step 2: Extract image and text information for each product
 
 # img_width, img_height = 80, 80
-img_width, img_height = 100, 100
+# img_width, img_height = 100, 100
 
-img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
+# img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
+img_dir_path = "data/images/"
 dirs = os.listdir(img_dir_path)
 
 # ---------
@@ -120,9 +126,9 @@ dirs = os.listdir(img_dir_path)
 product_image_feature_file_path = 'product-vgg-features.pkl'
 
 # extract VGG16 features
-def extract_features(dict_product_img, img_width, img_height, nb_channel):
-    model = applications.VGG16(weights='imagenet', include_top=False, input_shape=(img_width, img_height, nb_channel))
-    # model = applications.VGG16()
+def extract_features(dict_product_img):
+    # model = applications.VGG16(weights='imagenet', include_top=False, input_shape=(img_width, img_height, nb_channel))
+    model = applications.VGG16()
     model.layers.pop()
     model = Model(inputs=model.inputs, outputs=model.layers[-1].output)
     print(model.summary())
@@ -141,11 +147,13 @@ if prepare_img_data:
     for file_name in dirs:
         file_path = os.path.join(img_dir_path, file_name)
 
-        img = load_img(file_path)         # this is a PIL image
-        x = img_to_array(img)             # this is a Numpy array with shape (img_width, img_height, 3)
+        # img = load_img(file_path)         # this is a PIL image
+        img = load_img(file_path, target_size=(224, 224))   # this is a PIL image
+        x = img_to_array(img)                               # this is a Numpy array with shape (img_width, img_height, 3)
         x = x.reshape((1, x.shape[0], x.shape[1], x.shape[2]))
         # x = x.reshape((1,) + x.shape)   # this is a Numpy array with shape (1, 3, img_width, img_height)
-
+        # prepare the image for the VGG model
+        x = preprocess_input(x)
         product_id = int(file_name.split('_')[0])
 
         if not int(product_id) in list_product_id:
@@ -157,16 +165,7 @@ if prepare_img_data:
         if product_id not in dict_product_img:
             print('product {} does not have an image'.format(product_id))
 
-    print('product image id')
-    for product_id, _ in dict_product_img.items():
-        print(product_id)
-
-    dict_product_img_features = extract_features(dict_product_img, img_width, img_height, 3)
-
-    print('product features id')
-    for product_id, _ in dict_product_img_features.items():
-        print(product_id)
-
+    dict_product_img_features = extract_features(dict_product_img)
     # save features to file
     dump(dict_product_img_features, open(product_image_feature_file_path, 'wb'))
 
@@ -282,7 +281,6 @@ def load_clean_descriptions(filename, list_product_id):
             desc = 'startseq ' + ' '.join(product_desc) + ' endseq'
             descriptions[product_id].append(desc)
 
-
     # for key, value in descriptions.items():
     #     print(key)
     #     print(value)
@@ -300,9 +298,7 @@ def load_photo_features(filename, list_product_id):
     dataset = []
     # dict_features = dict()
     for product_id in list_product_id:
-        if (not str(product_id) in all_features) or (not product_id in all_features):
-            print('product {} does not have image features'.format(product_id))
-        else:
+        if (str(product_id) in all_features) or (product_id in all_features):
             dataset.append(product_id)
 
     # for product_id, features in all_features.items():
@@ -310,12 +306,7 @@ def load_photo_features(filename, list_product_id):
     #         dict_features[int(product_id)] = features
 
     # filter features
-    features = {k: all_features[k] for k in dataset}
-
-    print('key')
-    print(len(dataset))
-    for key in features.keys():
-        print(key)
+    features = {int(k): all_features[k] for k in dataset}
 
     return features
 
@@ -355,24 +346,23 @@ photo	startseq, little, girl, running, in, field,  endseq
 
 # create sequences of images, input sequences and output words for an image
 def create_sequences(tokenizer, max_length, desc_list, photo):
-	X1, X2, y = list(), list(), list()
-	# walk through each description for the image
-	for desc in desc_list:
-		# encode the sequence
-		seq = tokenizer.texts_to_sequences([desc])[0]
-		# split one sequence into multiple X,y pairs
-		for i in range(1, len(seq)):
-			# split into input and output pair
-			in_seq, out_seq = seq[:i], seq[i]
-			# pad input sequence
-			in_seq = pad_sequences([in_seq], maxlen=max_length)[0]
-			# encode output sequence
-			out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
-			# store
-			X1.append(photo)
-			X2.append(in_seq)
-			y.append(out_seq)
-	return np.array(X1), np.array(X2), np.array(y)
+    X1, X2, y = list(), list(), list()
+    for desc in desc_list:
+        # encode the sequence
+        seq = tokenizer.texts_to_sequences([desc])[0]
+        # split one sequence into multiple X,y pairs
+        for i in range(1, len(seq)):
+            # split into input and output pair
+            in_seq, out_seq = seq[:i], seq[i]
+            # pad input sequence
+            in_seq = pad_sequences([in_seq], maxlen=max_length)[0]
+            # encode output sequence
+            out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
+            # store
+            X1.append(photo)
+            X2.append(in_seq)
+            y.append(out_seq)
+    return np.array(X1), np.array(X2), np.array(y)
 
 # data generator, intended to be used in a call to model.fit_generator()
 def data_generator(descriptions, photos, tokenizer, max_length):
@@ -390,26 +380,26 @@ def data_generator(descriptions, photos, tokenizer, max_length):
 
 # define the captioning model
 def define_model(vocab_size, max_length):
-	# feature extractor model
-	inputs1 = Input(shape=(4096,))
-	fe1 = Dropout(0.5)(inputs1)
-	fe2 = Dense(256, activation='relu')(fe1)
-	# sequence model
-	inputs2 = Input(shape=(max_length,))
-	se1 = Embedding(vocab_size, 256, mask_zero=True)(inputs2)
-	se2 = Dropout(0.5)(se1)
-	se3 = LSTM(256)(se2)
-	# decoder model
-	decoder1 = add([fe2, se3])
-	decoder2 = Dense(256, activation='relu')(decoder1)
-	outputs = Dense(vocab_size, activation='softmax')(decoder2)
-	# tie it together [image, seq] [word]
-	model = Model(inputs=[inputs1, inputs2], outputs=outputs)
-	model.compile(loss='categorical_crossentropy', optimizer='adam')
-	# summarize model
-	print(model.summary())
-	# plot_model(model, to_file='model.png', show_shapes=True)
-	return model
+    # feature extractor model
+    inputs1 = Input(shape=(4096,))
+    fe1 = Dropout(0.5)(inputs1)
+    fe2 = Dense(256, activation='relu')(fe1)
+    # sequence model
+    inputs2 = Input(shape=(max_length,))
+    se1 = Embedding(vocab_size, 256, mask_zero=True)(inputs2)
+    se2 = Dropout(0.5)(se1)
+    se3 = LSTM(256)(se2)
+    # decoder model
+    decoder1 = add([fe2, se3])
+    decoder2 = Dense(256, activation='relu')(decoder1)
+    outputs = Dense(vocab_size, activation='softmax')(decoder2)
+    # tie it together [image, seq] [word]
+    model = Model(inputs=[inputs1, inputs2], outputs=outputs)
+    model.compile(loss='categorical_crossentropy', optimizer='adam')
+    # summarize model
+    print(model.summary())
+    # plot_model(model, to_file='model.png', show_shapes=True)
+    return model
 
 
 print('Number of products: {}'.format(len(list_product_id)))
@@ -429,8 +419,8 @@ print('Descriptions: %d' % len(all_descriptions))
 
 # prepare train and test sets
 percentage_train = 0.2
-list_train_product_id = all_features.keys()[0:int(len(list_product_id)*percentage_train)]
-list_test_product_id = all_features.keys()[len(list_train_product_id):]
+list_train_product_id = list_product_id[0:int(len(list_product_id)*percentage_train)]
+list_test_product_id = list_product_id[len(list_train_product_id):]
 
 train_features = dict()
 train_descriptions = dict()
