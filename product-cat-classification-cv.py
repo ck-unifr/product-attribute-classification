@@ -183,7 +183,7 @@ train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, t
 
 
 # CNN hyperparameters
-epochs = 2
+epochs = 1000
 batch_size = 128
 
 model = Sequential()
