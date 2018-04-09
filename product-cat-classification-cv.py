@@ -1,59 +1,51 @@
-#
 # Farfetech case study
 #
 # Product category classification with CNN
+# The object of this script is using deep learning technologies (CNN) for product category classification
 #
 # Author: Kai Chen
 # Date: Apr, 2018
 #
 
 
-import gc
 import pandas as pd
 import numpy as np
 import os
+import sys
 import itertools
+import operator
 from random import shuffle
 
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import seaborn as sns
 # %matplotlib inline
 
-np.random.seed(42)
-
-
-from scipy.sparse import csr_matrix, hstack
-
-from nltk.corpus import stopwords
-
-from keras.preprocessing.text import text_to_word_sequence
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
-from sklearn.feature_selection import SelectFromModel
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 
 from keras.utils.np_utils import to_categorical # convert to one-hot-encoding
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D
+from keras.models import Sequential, load_model, Model
+from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D, Activation
 from keras.optimizers import RMSprop
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.callbacks import ReduceLROnPlateau
+from keras.layers.normalization import BatchNormalization
+from keras import callbacks, applications, optimizers
 
+np.random.seed(42)
 
 # ---------------------
 # Define the file paths
 PRODUCT_CSV_FILE = 'data/products.csv'
 ATTRIBUTE_CSV_FILE = 'data/attributes.csv'
 
+plot_figure = False
+
 # -----------
-# Step 1. Read and explor the data
+# Step 1. Read and explore the data
+
 df_product = pd.read_csv(PRODUCT_CSV_FILE)
 
 # print(df_product.head())
@@ -64,31 +56,63 @@ list_product_id = df_product['ProductId'].unique()
 list_product_id = np.array(list_product_id)
 print('number of products {}'.format(list_product_id.shape[0]))
 
-# get product category
-print('get product category.')
 list_category = df_product['Category'].unique()
 list_category = np.array(list_category)
 print('number of category {}'.format(list_category.shape[0]))
 
+# create a dictionary with key: product id -> value: category
+# in this csv file we can find that each product belongs to only one category
 dict_product_cat = dict()
 for product_id in list_product_id:
     category = df_product[df_product['ProductId'] == product_id]['Category'].values
-    # if (len(category)) > 1:
-    #     print('>1')
+    if (len(category)) > 1:
+         print('product {} belongs to more than two categories.'.format(product_id))
     dict_product_cat[product_id] = category[0]
 
-# key: category  value: number of products
+# create a dictionary with key: category -> value: a list of product id
 dict_cat = dict()
+dict_cat_nb_products = dict()
+nb_products_cat = []
 for category in list_category:
     products = df_product[df_product['Category'] == category]['ProductId'].values
     dict_cat[category] = products
+    dict_cat_nb_products[category] = len(products)
+    nb_products_cat.append(len(products))
     # print('category {}  number of products {}'.format(category, len(products)))
 
 
+# show number of products per category
+print('plot number of products per category')
+plt.bar(range(len(dict_cat_nb_products)), list(dict_cat_nb_products.values()), align='center')
+plt.xticks(range(len(dict_cat_nb_products)), list(dict_cat_nb_products.keys()))
+plt.xticks(rotation=90)
+# # for python 2.x:
+# plt.bar(range(len(dict_cat_nb_products)), dict_cat_nb_products.values(), align='center')  # python 2.x
+# plt.xticks(range(len(dict_cat_nb_products)), dict_cat_nb_products.keys())  # in python 2.x
+if plot_figure:
+    plt.show()
+
+# get max and min number of products per category
+min_products = sys.maxsize
+min_products_cat = ''
+max_products = 0
+max_products_cat = ''
+for category, nb_products in dict_cat_nb_products.items():
+    if nb_products < min_products:
+        min_products = nb_products
+        min_products_cat = category
+    if nb_products > max_products:
+        max_products = nb_products
+        max_products_cat = category
+
+print('category {} has the max number of products, i.e., {}'.format(max_products_cat, max_products))
+print('category {} has the min number of products, i.e., {}'.format(min_products_cat, min_products))
+print('mean number of products per category: {}'.format(np.mean(nb_products_cat)))
+print('standard deviation of number of products per category: {}'.format(np.std(nb_products_cat)))
 
 
-# get mapping product_id -> articlephoto_id
-# ArticlePhotoId
+# create a dictionary with key: photo id -> value: product id
+# note one photo belongs only to one product
 list_photo_id = df_product['ArticlePhotoId'].unique()
 dict_photo_product_id = dict()
 for photo_id in list_photo_id:
@@ -96,28 +120,35 @@ for photo_id in list_photo_id:
 
 
 # ---------
-# Step 2: Prepare
-# prepare train, and test sets
-shuffle(list_product_id)
+# Step 2: Prepare train, and test sets
+
 percentage_train_set = 0.7
+
+shuffle(list_product_id)
+
 list_product_id_train = list_product_id[0:int(percentage_train_set*len(list_product_id))]
 list_product_id_test = list_product_id[len(list_product_id_train):]
 
-# print(len(list_product_id))
-# print(len(list_product_id_train))
-# print(len(list_product_id_test))
+print('number of samples {}'.format(len(list_product_id)))
+print('number of trainig samples {}'.format(len(list_product_id_train)))
+print('number of trainig samples {}'.format(len(list_product_id_test)))
+
+
 
 # -----------
 # Step 3: Train a CNN model for category classification
 
-# category detection
-class_names = list_category
-
-# ideas are taken from
+# References:
 # https://www.kaggle.com/yassineghouzam/introduction-to-cnn-keras-0-997-top-6
 # https://machinelearningmastery.com/image-augmentation-deep-learning-keras/
 # https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
 # https://github.com/tatsuyah/CNN-Image-Classifier/blob/master/src/train-multiclass.py
+# https://www.kaggle.com/fujisan/use-keras-pre-trained-vgg16-acc-98
+
+
+class_names = list_category
+
+# img_width, img_height = 80, 80
 img_width, img_height = 100, 100
 
 train_img_x = []
@@ -125,28 +156,28 @@ train_img_y = []
 test_img_x = []
 test_img_y = []
 
-# key: product id, value: image path
-dict_img_path = dict()
-
-# ----
+# ------------
 # get training and test images
+
 img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
 dirs = os.listdir(img_dir_path)
+
+# key: product id, value: image path
+dict_img_path = dict()
 
 for file_name in dirs:
     file_path = os.path.join(img_dir_path, file_name)
 
-    img = load_img(file_path)      # this is a PIL image
-    x = img_to_array(img)          # this is a Numpy array with shape (img_width, img_height, 3)
-    # x = x.reshape((1,) + x.shape)  # this is a Numpy array with shape (1, 3, img_width, img_height)
+    img = load_img(file_path)         # this is a PIL image
+    x = img_to_array(img)             # this is a Numpy array with shape (img_width, img_height, 3)
+    # x = x.reshape((1,) + x.shape)   # this is a Numpy array with shape (1, 3, img_width, img_height)
 
     product_id = int(file_name.split('_')[0])
 
     dict_img_path[product_id] = file_path
-    # print(product_id)
 
-    # if not product_id in list_product_id:
-    #     print('photo {} does not have product information'.format(photo_id))
+    if not product_id in list_product_id:
+        print('photo {} does not have product information'.format(file_path))
 
     if product_id in list_product_id:
         if product_id in list_product_id_train:
@@ -162,48 +193,118 @@ test_img_x = np.array(test_img_x)
 test_img_y = np.array(test_img_y)
 
 
-
-
 # transform category to one-hot encoding
 le = preprocessing.LabelEncoder()
 le.fit(class_names)
 train_img_y = le.transform(train_img_y)
 test_img_y = le.transform(test_img_y)
 
-# show number of samples per class
-# plt.hist(train_img_y.tolist(), range(min(train_img_y), max(train_img_y)+1))
-# plt.show()
+
+# show number of samples per class in the train set
+plt.hist(train_img_y.tolist(), range(min(train_img_y), max(train_img_y)+1))
+if plot_figure:
+    plt.show()
 
 
 train_img_y = to_categorical(train_img_y, num_classes = len(class_names))
 test_img_y = to_categorical(test_img_y, num_classes = len(class_names))
 
-# Split the train and the validation set for the fitting
+
+# split the train and the validation set for the fitting
 train_img_x, val_img_x, train_img_y, val_img_y = train_test_split(train_img_x, train_img_y, test_size = 0.1, random_state=42)
 
 
+# ----------------------
 # CNN hyperparameters
-epochs = 1000
-batch_size = 128
 
-model = Sequential()
+epochs = 5
+batch_size = 32
+filters = [16, 16, 8, 8]
+kernel_sizes = [11, 11, 7, 7]
+strides = [2, 2, 2, 2]
+pooling_sizes = [2, 2]
+str_parameters = '[epochs]{}-[batch_size]{}-[filters]{}-[kernel_sizes]{}-[strides]{}-[pooling_sizes]{}'.format(epochs,
+                                                                                                                batch_size,
+                                                                                                                '_'.join(str(x) for x in filters),
+                                                                                                                '_'.join(str(x) for x in kernel_sizes),
+                                                                                                                '_'.join(str(x) for x in strides),
+                                                                                                                '_'.join(str(x) for x in pooling_sizes),
+                                                                                                                )
 
-model.add(Conv2D(filters = 64, kernel_size = (5,5), padding = 'Same', activation ='relu', input_shape = (img_width, img_height, 3)))
-model.add(Conv2D(filters = 32, kernel_size = (5,5), padding = 'Same', activation ='relu'))
-model.add(MaxPool2D(pool_size=(2,2)))
-model.add(Dropout(0.25))
+#model_name = 'CNN'
+model_name = 'VGG16'
 
-model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
-model.add(Conv2D(filters = 64, kernel_size = (3,3),padding = 'Same', activation ='relu'))
-model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
-model.add(Dropout(0.25))
+model = None
+if model_name == 'CNN':
+    model = Sequential()
 
-model.add(Flatten())
-model.add(Dense(256, activation = "relu"))
-model.add(Dropout(0.5))
-model.add(Dense(len(class_names), activation = "softmax"))
+    model.add(Conv2D(filters = filters[0], kernel_size = (kernel_sizes[0], kernel_sizes[0]),
+                     padding = 'Same', strides=strides[0],  input_shape = (img_width, img_height, 3)),
+                     #activation ='relu',
+                    )
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
 
-optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
+    model.add(Conv2D(filters = filters[1], kernel_size = (kernel_sizes[1], kernel_sizes[1]),
+                     padding = 'Same', strides=strides[1],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
+    model.add(MaxPool2D(pool_size=(pooling_sizes[0], pooling_sizes[0])))
+    model.add(Dropout(0.2))
+
+    model.add(Conv2D(filters = filters[2], kernel_size = (kernel_sizes[2], kernel_sizes[2]),
+                     padding = 'Same', strides=strides[2],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
+    model.add(Conv2D(filters = filters[3], kernel_size = (kernel_sizes[3], kernel_sizes[3]),
+                     padding = 'Same', strides=strides[3],
+                     #activation ='relu'
+                     ))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
+    model.add(MaxPool2D(pool_size=(pooling_sizes[1], pooling_sizes[1])))
+    model.add(Dropout(0.2))
+
+    model.add(Flatten())
+    #model.add(Dense(256, activation = "relu"))
+    model.add(Dense(256, kernel_initializer='glorot_uniform'))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(Dropout(0.2))
+
+    model.add(Dense(len(class_names), activation = "softmax"))
+
+elif model_name == 'VGG16':
+    # use pre-trained VGG16
+    base_model = applications.VGG16(weights='imagenet', include_top=False, input_shape=(img_width, img_height, 3))
+
+    add_model = Sequential()
+    add_model.add(Flatten(input_shape=base_model.output_shape[1:]))
+
+    add_model.add(Dense(256, kernel_initializer='glorot_uniform'))
+    # add_model.add(Dense(1, activation='sigmoid'))
+    add_model.add(BatchNormalization())
+    add_model.add(Activation('relu'))
+    add_model.add(Dropout(0.2))
+
+    add_model.add(Dense(len(class_names), activation="softmax"))
+
+    model = Model(inputs=base_model.input, outputs=add_model(base_model.output))
+
+    # model.compile(loss='binary_crossentropy', optimizer=optimizers.SGD(lr=1e-4, momentum=0.9),
+    #              metrics=['accuracy'])
+
+print(model.summary())
+
+#optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
+optimizer = optimizers.SGD(lr=1e-3, momentum=0.9)
 
 model.compile(optimizer = optimizer , loss = "categorical_crossentropy", metrics=["accuracy"])
 
@@ -214,7 +315,7 @@ learning_rate_reduction = ReduceLROnPlateau(monitor='val_acc',
                                             min_lr=0.00001)
 
 # -----------
-# Data augmentation
+# data augmentation
 datagen = ImageDataGenerator(
         featurewise_center=False,               # set input mean to 0 over the dataset
         samplewise_center=False,                # set each sample mean to 0
@@ -231,13 +332,17 @@ datagen = ImageDataGenerator(
 datagen.fit(train_img_x)
 
 # Fit the model
+# Tensorboard log
+tf_log_dir = './tf-log/'
+if not os.path.exists(tf_log_dir):
+    os.makedirs(tf_log_dir)
+tb_cb = callbacks.TensorBoard(log_dir=tf_log_dir, histogram_freq=1)
+cbks = [tb_cb]
+
 history = model.fit_generator(datagen.flow(train_img_x, train_img_y, batch_size=batch_size),
                               epochs = epochs, validation_data = (val_img_x, val_img_y),
                               verbose = 2, steps_per_epoch=train_img_x.shape[0] // batch_size, callbacks=[learning_rate_reduction])
 
-
-# -----------
-# Evaluation
 
 # Training and validation curves
 # Plot the loss and accuracy curves for training and validation
@@ -250,9 +355,44 @@ ax[1].plot(history.history['acc'], color='b', label="Training accuracy")
 ax[1].plot(history.history['val_acc'], color='r',label="Validation accuracy")
 legend = ax[1].legend(loc='best', shadow=True)
 
-plt.show()
+if plot_figure:
+    plt.show()
 
-# Confusion matrix
+# save the model
+model_dir = './models/'
+if not os.path.exists(model_dir):
+  os.mkdir(model_dir)
+
+model_path = ''
+if model_name == 'CNN':
+    model_path = '{}cat-cnn-model-{}.h5'.format(model_dir, str_parameters)
+elif model_name == 'VGG16':
+    model_path = '{}cat-vgg16-{}-{}.h5'.format(model_dir, epochs, batch_size)
+model.save(model_path)
+print('save model to {}'.format(model_path))
+
+model_weights_path = ''
+if model_name == 'CNN':
+    model_weights_path = '{}cat-cnn-weights-{}.h5'.format(model_dir, str_parameters)
+elif model_name == 'VGG16':
+    model_weights_path = '{}cat-vgg16-weights-{}-{}.h5'.format(model_dir, epochs, batch_size)
+model.save_weights(model_weights_path)
+print('save weights to {}'.format(model_weights_path))
+
+
+# -----------
+# Step 4: Make predictions
+
+# load the model
+model = load_model(model_path)
+model.load_weights(model_weights_path)
+
+test_pred = model.predict(test_img_x)
+
+
+# -----------
+# Step 5: Evaluation
+
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
@@ -281,19 +421,19 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
-# Predict the values from the validation dataset
-test_pred = model.predict(test_img_x)
-
-# Convert predictions classes to one hot vectors
+# convert predictions classes to one hot vectors
 test_pred_classes = np.argmax(test_pred, axis = 1)
-# results = pd.Series(results, name="Label")
+# results = pd.Series(test_pred_classes, name="Label")
 
-# Convert test observations to one hot vectors
+# convert test observations to one hot vectors
 test_true_classes = np.argmax(test_img_y, axis = 1)
 
 # compute the confusion matrix
 test_true_classes = le.inverse_transform(test_true_classes)
 test_pred_classes = le.inverse_transform(test_pred_classes)
+
+acc_score = accuracy_score(test_true_classes, test_pred_classes)
+print('accuracy {}'.format(acc_score))
 
 print(classification_report(test_true_classes, test_pred_classes, target_names=class_names))
 
@@ -301,231 +441,72 @@ confusion_mtx = confusion_matrix(test_true_classes, test_pred_classes)
 print(confusion_mtx)
 
 # plot the confusion matrix
-# plot_confusion_matrix(confusion_mtx, classes = range(10))
-# plt.show()
+plot_confusion_matrix(confusion_mtx, classes = range(10))
+
+if plot_figure:
+    plt.show()
+
 
 
 # ----------
-# TODO: Display some error results
+# Display some error results
+
 test_true_classes = np.array(test_true_classes).reshape((test_img_x.shape[0], 1))
 test_pred_classes = np.array(test_pred_classes).reshape((test_img_x.shape[0], 1))
 
-
 error_indices = []
+correct_indices = []
 for i, val in enumerate(test_true_classes):
     if test_true_classes[i][0] != test_pred_classes[i][0]:
         error_indices.append(i)
+    else:
+        correct_indices.append(i)
 
 list_error_product_id = []
+list_error_product_true_class = []
+list_error_product_pred_class = []
 for i in error_indices:
     list_error_product_id.append(list_product_id_test[i])
-
+    list_error_product_true_class.append(test_true_classes[i][0])
+    list_error_product_pred_class.append(test_pred_classes[i][0])
 print('error classified products')
 print(list_error_product_id)
 
-acc = 1 - len(list_error_product_id) / len(list_product_id_test)
-print('accuracy {}'.format(acc))
+list_correct_product_id = []
+list_correct_product_true_class = []
+list_correct_product_pred_class = []
+for i in correct_indices:
+    list_correct_product_id.append(list_product_id_test[i])
+    list_correct_product_true_class.append(test_true_classes[i][0])
+    list_correct_product_pred_class.append(test_pred_classes[i][0])
+print('correct classified products')
+print(list_correct_product_id)
 
+print('{} / {} products are classified correctly'.format(len(correct_indices), test_true_classes.shape[0]))
+# acc = 1 - len(list_error_product_id) / len(list_product_id_test)
+# print('accuracy {}'.format(acc))
 
-img = mpimg.imread(dict_img_path[list_error_product_id[0]])
-imgplot = plt.imshow(img)
-plt.show()
+for index in range(0, 10):
+    img = mpimg.imread(dict_img_path[list_error_product_id[index]])
+    imgplot = plt.imshow(img)
+    plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_error_product_id[index],
+                                                                 list_error_product_true_class[index],
+                                                                 list_error_product_pred_class[index]))
+    if plot_figure:
+        plt.show()
 
-
-
-# Errors are difference between predicted labels and true labels
-# errors = (test_pred_classes - test_true != 0)
-#
-# Y_pred_classes_errors = test_pred_classes[errors]
-# Y_pred_errors = test_pred[errors]
-# Y_true_errors = test_true[errors]
-# X_val_errors = test_img_x[errors]
-#
-# def display_errors(errors_index, img_errors, pred_errors, obs_errors, img_width, img_height):
-#     """ This function shows 6 images with their predicted and real labels"""
-#     n = 0
-#     nrows = 2
-#     ncols = 3
-#     fig, ax = plt.subplots(nrows,ncols,sharex=True,sharey=True)
-#     for row in range(nrows):
-#         for col in range(ncols):
-#             error = errors_index[n]
-#             ax[row,col].imshow((img_errors[error]).reshape((img_width, img_height)))
-#             ax[row,col].set_title("Predicted label :{}\nTrue label :{}".format(pred_errors[error],obs_errors[error]))
-#             n += 1
-#
-# # Probabilities of the wrong predicted numbers
-# Y_pred_errors_prob = np.max(Y_pred_errors,axis = 1)
-#
-# # Predicted probabilities of the true values in the error set
-# true_prob_errors = np.diagonal(np.take(Y_pred_errors, Y_true_errors, axis=1))
-#
-# # Difference between the probability of the predicted label and the true label
-# delta_pred_true_errors = Y_pred_errors_prob - true_prob_errors
-#
-# # Sorted list of the delta prob errors
-# sorted_dela_errors = np.argsort(delta_pred_true_errors)
-#
-# # Top 6 errors
-# most_important_errors = sorted_dela_errors[-6:]
-#
-# # Show the top 6 errors
-# display_errors(most_important_errors, X_val_errors, Y_pred_classes_errors, Y_true_errors, img_width, img_height)
-
-
-# # predict results
-# results = model.predict(test)
-#
-# # select the indix with the maximum probability
-# results = np.argmax(results,axis = 1)
-#
-# results = pd.Series(results,name="Label")
-
-
-
-# # -----------
-# # Step 4: NLP
-# # remove stop words
-# df_attribute = pd.read_csv(ATTRIBUTE_CSV_FILE)
-# print(df_attribute.head())
-# print(df_attribute.shape)
-# print(len(df_attribute['ProductId'].unique()))
-#
-# df_product_attribute = pd.merge(df_product, df_attribute, on=['ProductId'])
-# print(df_product_attribute.head())
-# print(df_product_attribute.shape)
-#
-# print(len(df_product_attribute['ProductId'].unique()))
-# print(len(df_product_attribute['AttributeValueName'].unique()))
-#
-# print(df_product_attribute.columns)
-# print(df_product_attribute.describe())
-#
-# list_product_id = df_attribute['ProductId'].unique()
-# dict_product_des = dict()
-#
-#
-# print('get product description.')
-# for product_id in list_product_id:
-#     if product_id in dict_product_des:
-#         print('product {} has more than one description'.format(product_id))
-#     df_sub = df_product_attribute[df_product_attribute['ProductId'] == product_id]
-#     # print(df_sub['Description'].values[0])
-#     dict_product_des[product_id] = df_sub['Description'].values[0]
-#
-# # create one-hot encoding for the attribute name
-# print('get product attribute.')
-# list_attribute = df_attribute['AttributeName'].unique()
-# dict_product_att = dict()
-# for product_id in list_product_id:
-#     dict_product_att[product_id] = dict()
-#     for attribute in list_attribute:
-#         dict_product_att[product_id][attribute] = 0
-#     list_product_attribute = df_product_attribute[df_product_attribute['ProductId'] == product_id]['AttributeName']
-#     # print(len(list_product_attribute))
-#     for attribute in list_product_attribute:
-#         dict_product_att[product_id][attribute] = 1
-#
-# nlp = False
-#
-# def cleanupDoc(s):
-#     stopset = set(stopwords.words('english'))
-#     stopset.add('wikipedia')
-#     tokens = text_to_word_sequence(s, filters="\"!'#$%&()*+,-˚˙./:;‘“<=·>?@[]^_`{|}~\t\n", lower=True, split=" ")
-#     cleanup = " ".join(filter(lambda word: word not in stopset, tokens))
-#     return cleanup
-#
-# if nlp:
-#     train_text = []
-#     train_attribute = dict()
-#
-#     for class_name in class_names:
-#         train_attribute[class_name] = []
-#
-#     for product_id in list_product_id_train:
-#         train_text.append(dict_product_des[product_id])
-#         for class_name in class_names:
-#             train_attribute[class_name].append(dict_product_att[product_id][class_name])
-#
-#     test_text = []
-#     test_attribute = dict()
-#
-#     for class_name in class_names:
-#         test_attribute[class_name] = []
-#
-#     for product_id in list_product_id_test:
-#         test_text.append(dict_product_des[product_id])
-#         for class_name in class_names:
-#             test_attribute[class_name].append(dict_product_att[product_id][class_name])
-#
-#     train_text = [cleanupDoc(text) for text in train_text]
-#     test_text = [cleanupDoc(text) for text in test_text]
-#
-#
-#     word_vectorizer = TfidfVectorizer(
-#         sublinear_tf=True,
-#         strip_accents='unicode',
-#         analyzer='word',
-#         token_pattern=r'\w{1,}',
-#         ngram_range=(1, 2),
-#         # max_features=50000,
-#         max_features=10000,
-#         )
-#     train_word_features = word_vectorizer.fit_transform(train_text)
-#     print('Word TFIDF 1/2')
-#     test_word_features = word_vectorizer.transform(test_text)
-#     print('Word TFIDF 2/2')
-#
-#     char_vectorizer = TfidfVectorizer(
-#         sublinear_tf=True,
-#         strip_accents='unicode',
-#         analyzer='char',
-#         stop_words='english',
-#         ngram_range=(2, 6),
-#         # max_features=50000,
-#         max_features=10000,
-#         )
-#     train_char_features = char_vectorizer.fit_transform(train_text)
-#     print('Char TFIDF 1/2')
-#     test_char_features = char_vectorizer.transform(test_text)
-#     print('Char TFIDF 2/2')
-#
-#     train_features = hstack([train_char_features, train_word_features])
-#     print('HStack 1/2')
-#     test_features = hstack([test_char_features, test_word_features])
-#     print('HStack 2/2')
-#
-#     pred_attribute = dict()
-#     scores = []
-#     for class_name in class_names:
-#         # print(class_name)
-#         train_target = train_attribute[class_name]
-#
-#         classifier = LogisticRegression(solver='sag')
-#         sfm = SelectFromModel(classifier, threshold=0.2)
-#
-#         # print(train_features.shape)
-#         train_sparse_matrix = sfm.fit_transform(train_features, train_target)
-#         # print(train_sparse_matrix.shape)
-#
-#         # train_sparse_matrix, valid_sparse_matrix, y_train, y_valid = train_test_split(train_sparse_matrix, train_target,
-#         #                                                                               test_size=0.05, random_state=42)
-#         test_sparse_matrix = sfm.transform(test_features)
-#
-#         cv_score = np.mean(cross_val_score(classifier, train_sparse_matrix, train_target, cv=2, scoring='roc_auc'))
-#         scores.append(cv_score)
-#         # print('CV score for class {} is {}'.format(class_name, cv_score))
-#
-#         classifier.fit(train_sparse_matrix, train_target)
-#
-#         pred_attribute[class_name] = classifier.predict_proba(test_sparse_matrix)[:, 1]
-#
-#     # --------------
-#     # evaluate the NLP model
-
-
-
+for index in range(0, 10):
+    img = mpimg.imread(dict_img_path[list_correct_product_id[index]])
+    imgplot = plt.imshow(img)
+    plt.title('[ProductID]{} [Category]{} [Prediction]{}'.format(list_correct_product_id[index],
+                                                                 list_correct_product_true_class[index],
+                                                                 list_correct_product_pred_class[index]))
+    if plot_figure:
+        plt.show()
 
 
 # ---------
 # Future work
+# - Transfer learning
+# - Data augmentation
+# - Combine vision and text information
