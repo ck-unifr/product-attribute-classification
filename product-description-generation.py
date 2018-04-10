@@ -525,6 +525,9 @@ def generate_desc(model, tokenizer, photo, max_length):
 
 # evaluate the skill of the model
 def evaluate_model(model, descriptions, photos, tokenizer, max_length):
+    # key: product id value: generated description
+    dict_pred_desc = dict()
+
     actual, predicted = list(), list()
     # step over the whole set
     # for key, desc_list in descriptions.items():
@@ -535,7 +538,9 @@ def evaluate_model(model, descriptions, photos, tokenizer, max_length):
 
         # store actual and predicted
         # references = [d.split() for d in desc_list]
-        references = desc.split()
+        # print(desc)
+        references = desc[0].split()
+        print(references)
 
         actual.append(references)
         predicted.append(yhat.split())
@@ -546,11 +551,15 @@ def evaluate_model(model, descriptions, photos, tokenizer, max_length):
         print('prediction')
         print(yhat)
 
+        dict_pred_desc[key] = yhat
+
     # calculate BLEU score
     print('BLEU-1: %f' % corpus_bleu(actual, predicted, weights=(1.0, 0, 0, 0)))
     print('BLEU-2: %f' % corpus_bleu(actual, predicted, weights=(0.5, 0.5, 0, 0)))
     print('BLEU-3: %f' % corpus_bleu(actual, predicted, weights=(0.3, 0.3, 0.3, 0)))
     print('BLEU-4: %f' % corpus_bleu(actual, predicted, weights=(0.25, 0.25, 0.25, 0.25)))
+
+    return dict_pred_desc
 
 
 # prepare test set
@@ -560,6 +569,12 @@ if EVALUATE_MODEL:
     # filename = 'model-ep002-loss3.245-val_loss3.612.h5'
     filename = 'model_1.h5'
     model = load_model(filename)
-    # evaluate model
-    evaluate_model(model, test_descriptions, test_features, tokenizer, max_length)
 
+    # evaluate model
+    dict_pred_desc = evaluate_model(model, test_descriptions, test_features, tokenizer, max_length)
+
+# display some generated description
+for product_id in list_test_product_id:
+    y_true = dict_product_des[i]
+    y_pred = dict_pred_desc[i]
+    x_img = dict_product_img[i]
