@@ -1,30 +1,30 @@
 # Farfetech case study
 #
 # Product description generation
-# The object of this script is using deep learning technologies (CNN) for product category classification
+# The object of this script is using deep learning technologies (CNN, LSTM) for product description generation.
 #
 # Author: Kai Chen
 # Date: Apr, 2018
 #
 
-from pickle import dump
-from pickle import load
-
 import string
-
-import pandas as pd
-import numpy as np
 import os
 import sys
 import itertools
 import operator
 from random import shuffle
 
+import numpy as np
+from numpy import argmax
+
+import pandas as pd
+
+from pickle import dump
+from pickle import load
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 # %matplotlib inline
-
-from pickle import load
 
 from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.text import Tokenizer
@@ -40,10 +40,6 @@ from keras.layers import Dropout
 from keras.layers.merge import add
 from keras.callbacks import ModelCheckpoint
 from keras import callbacks, applications, optimizers
-from numpy import argmax
-from pickle import load
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
 from keras.models import load_model
 from keras.applications.vgg16 import preprocess_input
 
@@ -105,8 +101,8 @@ for file_name in dirs:
 #     print(product_id)
 
 
-prepare_img_data = False
-prepare_text_data = False
+PREPARE_IMG_DATA = False
+PREPARE_TEXT_DATA = False
 
 TRAIN_MODEL = False
 EVALUATE_MODEL = True
@@ -141,7 +137,7 @@ def extract_features(dict_product_img):
     return features
 
 
-if prepare_img_data:
+if PREPARE_IMG_DATA:
     print('Prepare image data ...')
 
     # key: product id, value: image
@@ -231,7 +227,7 @@ def save_descriptions(descriptions, filename):
 
 
 # Create a dictionary, key: product id -> value: description
-if prepare_text_data:
+if PREPARE_TEXT_DATA:
     print('Prepare text data ...')
 
     dict_product_des = dict()
