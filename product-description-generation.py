@@ -105,10 +105,10 @@ for file_name in dirs:
 #     print(product_id)
 
 
-prepare_img_data = True
-prepare_text_data = True
+prepare_img_data = False
+prepare_text_data = False
 
-TRAIN_MODEL = True
+TRAIN_MODEL = False
 EVALUATE_MODEL = True
 
 # ---------
@@ -527,13 +527,25 @@ def generate_desc(model, tokenizer, photo, max_length):
 def evaluate_model(model, descriptions, photos, tokenizer, max_length):
     actual, predicted = list(), list()
     # step over the whole set
-    for key, desc_list in descriptions.items():
+    # for key, desc_list in descriptions.items():
+    for key, desc in descriptions.items():
+
         # generate description
         yhat = generate_desc(model, tokenizer, photos[key], max_length)
+
         # store actual and predicted
-        references = [d.split() for d in desc_list]
+        # references = [d.split() for d in desc_list]
+        references = desc.split()
+
         actual.append(references)
         predicted.append(yhat.split())
+
+        print('product id {}'.format(key))
+        print('description')
+        print(desc)
+        print('prediction')
+        print(yhat)
+
     # calculate BLEU score
     print('BLEU-1: %f' % corpus_bleu(actual, predicted, weights=(1.0, 0, 0, 0)))
     print('BLEU-2: %f' % corpus_bleu(actual, predicted, weights=(0.5, 0.5, 0, 0)))
