@@ -12,3 +12,8 @@
 
 - Notebook: product-attribute-classification.ipynb
 - Script:   product-attribute-classification-nlp.py
+
+### Description generation
+
+- Notebook: product-description-generation.ipynb
+- Script:   product-description-generation.py
