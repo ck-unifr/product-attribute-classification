@@ -11,8 +11,7 @@ from keras.layers import BatchNormalization
 from keras.optimizers import Adam, RMSprop
 
 
-class DCGAN(object):
-
+class DCGAN:
     def __init__(self, img_rows=28, img_cols=28, channel=1):
 
         self.img_rows = img_rows

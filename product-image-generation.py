@@ -1,188 +1,229 @@
-# Farfetech case study
-#
-# Product image generation with GANs
-#
-# Author: Kai Chen
-# Date: Apr, 2018
-#
+# Fork from https://github.com/ck-unifr/Keras-GAN/blob/master/gan/gan_rgb.py
 
-# Reference
-# https://towardsdatascience.com/gan-by-example-using-keras-on-tensorflow-backend-1a6d515a60d0
+from __future__ import print_function, division
 
-import time
-import numpy as np
-import pandas as pd
-import os
-from keras.preprocessing.image import load_img, img_to_array
+from keras.datasets import mnist
+from keras.datasets import cifar10
+from keras.layers import Input, Dense, Reshape, Flatten, Dropout
+from keras.layers import BatchNormalization, Activation, ZeroPadding2D
+from keras.layers.advanced_activations import LeakyReLU
+from keras.layers.convolutional import UpSampling2D, Conv2D
+from keras.models import Sequential, Model
+from keras.optimizers import Adam
 
-import DCGAN
-
-np.random.seed(42)
+import tensorflow as tf
+from scipy.misc import imread, imsave
 
 import matplotlib.pyplot as plt
 
+import sys
+import os
+from PIL import Image
+from glob import glob
+
+import numpy as np
 
 
-# ---------------------
-# Define the file paths
-PRODUCT_CSV_FILE = 'data/products.csv'
-ATTRIBUTE_CSV_FILE = 'data/attributes.csv'
+class GAN():
+    def __init__(self):
+        # self.img_rows = 28
+        # self.img_cols = 28
 
-plot_figure = False
-
-
-# -----------
-# Step 1. Read and explore the data
-
-df_product = pd.read_csv(PRODUCT_CSV_FILE)
-
-# print(df_product.head())
-# print(df_product.shape)
-# print(len(df_product['ProductId'].unique()))
-
-list_product_id_df = df_product['ProductId'].unique()
-list_product_id_df = np.array(list_product_id_df)
-print('number of products {} in the csv file'.format(list_product_id_df.shape[0]))
-
-# create a dictionary with key: photo id -> value: product id
-# note one photo belongs only to one product
-list_photo_id = df_product['ArticlePhotoId'].unique()
-dict_photo_product_id = dict()
-for photo_id in list_photo_id:
-    dict_photo_product_id[photo_id] = df_product[df_product['ArticlePhotoId']==photo_id]['ProductId'].values[0]
-
-# update the list_product_id, such that each product should have an image
-list_product_id = []
-img_width, img_height = 80, 80
-img_dir_path = "data/images_{}_{}/".format(img_width, img_height)
-
-dirs = os.listdir(img_dir_path)
-
-for file_name in dirs:
-    file_path = os.path.join(img_dir_path, file_name)
-    product_id = int(file_name.split('_')[0])
-
-    if not product_id in list_product_id_df:
-        print('photo {} does not have product information'.format(file_path))
-    else:
-        list_product_id.append(product_id)
-
-# key: product id, value: image
-dict_product_img = dict()
-
-for file_name in dirs:
-    file_path = os.path.join(img_dir_path, file_name)
-
-    # img = load_img(file_path)         # this is a PIL image
-    img = load_img(file_path, target_size=(img_width, img_height))   # this is a PIL image
-    x = img_to_array(img)                               # this is a Numpy array with shape (img_width, img_height, 3)
-    # x = x.reshape((1, x.shape[0], x.shape[1], x.shape[2]))
-    x = x.reshape((x.shape[0], x.shape[1], x.shape[2]))
-
-    # x = x.reshape((1,) + x.shape)   # this is a Numpy array with shape (1, 3, img_width, img_height)
-    # prepare the image for the VGG model
-    product_id = int(file_name.split('_')[0])
-
-    if not int(product_id) in list_product_id:
-        print('photo {} does not have product information'.format(file_path))
-    else:
-        dict_product_img[product_id] = x
-
-# -----------
-# Step 2: Define the model
-class PRODUCT_DCGAN(object):
-    def __init__(self, x_train):
         self.img_rows = 80
         self.img_cols = 80
-        self.channel = 3
 
-        # self.x_train = input_data.read_data_sets("mnist",\
-        # 	one_hot=True).train.images
-        self.x_train = self.x_train.reshape(-1, self.img_rows, self.img_cols, 1).astype(np.float32)
+        self.channels = 3
+        self.img_shape = (self.img_rows, self.img_cols, self.channels)
 
-        self.DCGAN = DCGAN()
-        self.discriminator =  self.DCGAN.discriminator_model()
-        self.adversarial = self.DCGAN.adversarial_model()
-        self.generator = self.DCGAN.generator()
+        optimizer = Adam(0.0002, 0.5)
 
-    def train(self, train_steps=2000, batch_size=256, save_interval=0):
-        noise_input = None
-        if save_interval>0:
-            noise_input = np.random.uniform(-1.0, 1.0, size=[16, 100])
-        for i in range(train_steps):
-            images_train = self.x_train[np.random.randint(0,
-                self.x_train.shape[0], size=batch_size), :, :, :]
-            noise = np.random.uniform(-1.0, 1.0, size=[batch_size, 100])
-            images_fake = self.generator.predict(noise)
-            x = np.concatenate((images_train, images_fake))
-            y = np.ones([2*batch_size, 1])
-            y[batch_size:, :] = 0
-            d_loss = self.discriminator.train_on_batch(x, y)
+        # Build and compile the discriminator
+        self.discriminator = self.build_discriminator()
+        self.discriminator.compile(loss='binary_crossentropy',
+                                   optimizer=optimizer,
+                                   metrics=['accuracy'])
 
-            y = np.ones([batch_size, 1])
-            noise = np.random.uniform(-1.0, 1.0, size=[batch_size, 100])
-            a_loss = self.adversarial.train_on_batch(noise, y)
-            log_mesg = "%d: [D loss: %f, acc: %f]" % (i, d_loss[0], d_loss[1])
-            log_mesg = "%s  [A loss: %f, acc: %f]" % (log_mesg, a_loss[0], a_loss[1])
-            print(log_mesg)
-            if save_interval>0:
-                if (i+1)%save_interval==0:
-                    self.plot_images(save2file=True, samples=noise_input.shape[0],\
-                        noise=noise_input, step=(i+1))
+        # Build and compile the generator
+        self.generator = self.build_generator()
+        self.generator.compile(loss='binary_crossentropy', optimizer=optimizer)
 
-    def plot_images(self, save2file=False, fake=True, samples=16, noise=None, step=0):
-        filename = 'product.png'
-        if fake:
-            if noise is None:
-                noise = np.random.uniform(-1.0, 1.0, size=[samples, 100])
-            else:
-                filename = "product_%d.png" % step
-            images = self.generator.predict(noise)
-        else:
-            i = np.random.randint(0, self.x_train.shape[0], samples)
-            images = self.x_train[i, :, :, :]
+        # The generator takes noise as input and generated imgs
+        z = Input(shape=(100,))
+        img = self.generator(z)
 
-        plt.figure(figsize=(10,10))
-        for i in range(images.shape[0]):
-            plt.subplot(4, 4, i+1)
-            image = images[i, :, :, :]
-            image = np.reshape(image, [self.img_rows, self.img_cols])
-            plt.imshow(image, cmap='gray')
-            plt.axis('off')
-        plt.tight_layout()
-        if save2file:
-            plt.savefig(filename)
-            plt.close('all')
-        else:
-            plt.show()
+        # For the combined model we will only train the generator
+        self.discriminator.trainable = False
 
-class ElapsedTimer(object):
-    def __init__(self):
-        self.start_time = time.time()
-    def elapsed(self,sec):
-        if sec < 60:
-            return str(sec) + " sec"
-        elif sec < (60 * 60):
-            return str(sec / 60) + " min"
-        else:
-            return str(sec / (60 * 60)) + " hr"
-    def elapsed_time(self):
-        print("Elapsed: %s " % self.elapsed(time.time() - self.start_time) )
+        # The valid takes generated images as input and determines validity
+        valid = self.discriminator(img)
+
+        # The combined model  (stacked generator and discriminator) takes
+        # noise as input => generates images => determines validity 
+        self.combined = Model(z, valid)
+        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
+
+    def build_generator(self):
+
+        noise_shape = (100,)
+
+        model = Sequential()
+
+        model.add(Dense(256, input_shape=noise_shape))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(Dense(512))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(Dense(1024))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(Dense(np.prod(self.img_shape), activation='tanh'))
+        model.add(Reshape(self.img_shape))
+
+        model.summary()
+
+        noise = Input(shape=noise_shape)
+        img = model(noise)
+
+        return Model(noise, img)
+
+    def build_discriminator(self):
+
+        img_shape = (self.img_rows, self.img_cols, self.channels)
+
+        model = Sequential()
+
+        model.add(Flatten(input_shape=img_shape))
+        model.add(Dense(512))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(Dense(256))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(Dense(1, activation='sigmoid'))
+        model.summary()
+
+        img = Input(shape=img_shape)
+        validity = model(img)
+
+        return Model(img, validity)
+
+    def get_image(self, image_path, width, height, mode):
+
+        image = Image.open(image_path)
+        # image = image.resize([width, height], Image.BILINEAR)
+        if image.size != (width, height):
+            # Remove most pixels that aren't part of a face
+            face_width = face_height = 108
+            j = (image.size[0] - face_width) // 2
+            i = (image.size[1] - face_height) // 2
+            image = image.crop([j, i, j + face_width, i + face_height])
+            image = image.resize([width, height])
+
+        return np.array(image.convert(mode))
+
+    def get_batch(self, image_files, width, height, mode):
+        data_batch = np.array(
+            [self.get_image(sample_file, width, height, mode) for sample_file in image_files])
+
+        return data_batch
+
+    def train(self, epochs, batch_size=128, save_interval=50, show_plot=True):
+
+        data_dir = './data/images_{}_{}'.format(self.img_cols, self.img_rows)
+
+        X_train = self.get_batch(glob(os.path.join(data_dir, '*.jpg'))[:5000], self.img_cols, self.img_rows, 'RGB')
+
+        # Rescale -1 to 1
+        X_train = (X_train.astype(np.float32) - 127.5) / 127.5
+
+        half_batch = int(batch_size / 2)
+
+        # Create lists for logging the losses
+        d_loss_logs_r = []
+        d_loss_logs_f = []
+        g_loss_logs = []
+
+        for epoch in range(epochs):
+
+            # ---------------------
+            #  Train Discriminator
+            # ---------------------
+
+            # Select a random half batch of images
+            idx = np.random.randint(0, X_train.shape[0], half_batch)
+            imgs = X_train[idx]
+
+            noise = np.random.normal(0, 1, (half_batch, 100))
+
+            # Generate a half batch of new images
+            gen_imgs = self.generator.predict(noise)
+
+            # Train the discriminator
+            d_loss_real = self.discriminator.train_on_batch(imgs, np.ones((half_batch, 1)))
+            d_loss_fake = self.discriminator.train_on_batch(gen_imgs, np.zeros((half_batch, 1)))
+            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+
+            # ---------------------
+            #  Train Generator
+            # ---------------------
+
+            noise = np.random.normal(0, 1, (batch_size, 100))
+
+            # The generator wants the discriminator to label the generated samples
+            # as valid (ones)
+            valid_y = np.array([1] * batch_size)
+
+            # Train the generator
+            g_loss = self.combined.train_on_batch(noise, valid_y)
+
+            # Plot the progress
+            print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100 * d_loss[1], g_loss))
+
+            # Append the logs with the loss values in each training step
+            d_loss_logs_r.append([epoch, d_loss[0]])
+            d_loss_logs_f.append([epoch, d_loss[1]])
+            g_loss_logs.append([epoch, g_loss])
+
+            # If at save interval => save generated image samples
+            if epoch % save_interval == 0:
+                self.save_imgs(epoch)
+
+            # Convert the log lists to numpy arrays
+            d_loss_logs_r_a = np.array(d_loss_logs_r)
+            d_loss_logs_f_a = np.array(d_loss_logs_f)
+            g_loss_logs_a = np.array(g_loss_logs)
+
+            # Generate the plot at the end of training
+            plt.plot(d_loss_logs_r_a[:, 0], d_loss_logs_r_a[:, 1], label="Discriminator Loss - Real")
+            plt.plot(d_loss_logs_f_a[:, 0], d_loss_logs_f_a[:, 1], label="Discriminator Loss - Fake")
+            plt.plot(g_loss_logs_a[:, 0], g_loss_logs_a[:, 1], label="Generator Loss")
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.title('Variation of losses over epochs')
+            plt.grid(True)
+            if show_plot:
+                plt.show()
+
+
+    def save_imgs(self, epoch):
+        r, c = 5, 5
+        noise = np.random.normal(0, 1, (r * c, 100))
+        gen_imgs = self.generator.predict(noise)
+
+        # Rescale images 0 - 1
+        gen_imgs = (1 / 2.5) * gen_imgs + 0.5
+
+        fig, axs = plt.subplots(r, c)
+        cnt = 0
+        for i in range(r):
+            for j in range(c):
+                axs[i, j].imshow(gen_imgs[cnt, :, :, :])
+                axs[i, j].axis('off')
+                cnt += 1
+        fig.savefig("output/%d.png" % epoch)
+        plt.close()
 
 
 if __name__ == '__main__':
-    x_train = []
-
-    for product_id in dict_product_img:
-        x_train.append(dict_product_img[product_id])
-
-    product_dcgan = PRODUCT_DCGAN(x_train)
-
-    timer = ElapsedTimer()
-
-    # product_dcgan.train(train_steps=10000, batch_size=256, save_interval=500)
-    product_dcgan.train(train_steps=10, batch_size=256, save_interval=5)
-
-    timer.elapsed_time()
-    product_dcgan.plot_images(fake=True)
-    product_dcgan.plot_images(fake=False, save2file=True)
+    gan = GAN()
+    gan.train(epochs=2000, batch_size=32, save_interval=200, show_plot=False)
